@@ -1,6 +1,15 @@
+use std::fs;
 use std::io;
 use std::fmt;
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::path::Path;
+use chrono::{DateTime, Local};
+use humantime::format_duration;
 use serde::{Serialize, Deserialize};
+use humantime::parse_duration;
+
+const TASK_PATH: &str = "tasks.json";
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 enum Status {
@@ -9,7 +18,8 @@ enum Status {
 enum AddMode {
     None,
     Title,
-    Tags
+    Tags,
+    Due
 }
 enum ListMode {
     Extended,
@@ -34,12 +44,13 @@ struct Task {
     title: String,
     tags: Vec<String>,
     status: Status,
+    due: Option<DateTime<Local>>,
 }
 
 impl Task {
-    fn create(id: u32, title: &str, tags: Vec<String>) -> Self {
+    fn create(id: u32, title: &str, tags: Vec<String>, due: Option<DateTime<Local>>) -> Self {
         Self {
-            id, title: title.to_string(), tags, status: Status::InProgress
+            id, title: title.to_string(), tags, status: Status::InProgress, due
         }
     }
     fn mark_completed(&mut self) {
@@ -53,16 +64,10 @@ struct TaskList {
 }
 
 impl TaskList {
-    fn init() -> Self {
-        Self {
-            tasks: vec![],
-            next_id: 1
-        }
-    }
-    fn add(&mut self, title: &str, tags: Vec<String>) {
+    fn add(&mut self, title: &str, tags: Vec<String>, due: Option<DateTime<Local>>) {
         let id = self.next_id;
         self.next_id += 1;
-        self.tasks.push(Task::create(id, title, tags));
+        self.tasks.push(Task::create(id, title, tags, due));
     }
     fn list(&self) {
         if self.tasks.is_empty() {
@@ -72,7 +77,19 @@ impl TaskList {
                 let id = &task.id;
                 let title = &task.title;
                 let progress = &task.status;
-                println!("{id}- {title} {progress} ")
+                if let Some(due) = task.due {
+                    let now = Local::now();
+
+                    if due > now {
+                        let diff = due - now;
+                        let std_dur = diff.to_std().unwrap();
+                        println!("{id}- {title} {progress} | Due: {}", format_duration(std_dur));
+                    } else {
+                        println!("{id}- {title} {progress} | OverDue: {}", due.format("%Y-%m-%d %H:%M"));
+                    }
+                } else {
+                    println!("{id}- {title} {progress}");
+                }
             }
         }
     }
@@ -97,27 +114,63 @@ impl TaskList {
     }
     fn clear_all(&mut self) {
         self.tasks.clear();
+        self.next_id = 1;
+    }
+    fn save_to_json(&self, path: &str) {
+        let json = serde_json::to_string_pretty(self).expect("Could not serialize tasks list.");
+
+        let mut file = OpenOptions::new() 
+            .write(true)
+            .read(true)
+            .create(true)
+            .truncate(true)
+            .open(path)
+            .expect("Failed to open file.");
+
+        file.write_all(json.as_bytes())
+            .expect("Could not write to file.");
+    }
+    fn load(path: &str) -> Self {
+        if !Path::new(path).exists() {
+            let tasks = TaskList {
+                tasks: vec![],
+                next_id: 1,
+            };
+
+            tasks.save_to_json(path);
+            return tasks;
+        } 
+        let data = fs::read_to_string(path).unwrap_or_else(|_| {
+            println!("Failed to create file, creating new one.");
+            return String::new();
+        });
+
+        if data.trim().is_empty() {
+            TaskList { tasks: vec![], next_id: 1, };
+        }
+
+        serde_json::from_str(&data).unwrap_or_else(|_| {
+            println!("Corrupted file, couldn't read.");
+            TaskList { tasks: vec![], next_id: 1 }
+        })
     }
 }
 
+
+// MAIN INPUT LOOP
 fn main() {
-
     //input loop
-    let mut tasks = TaskList::init();
-    let title: &str = "Hello";
-    let tags: Vec<String> = vec![
-        "rust".to_string(),
-        "cli".to_string(),
-        "todo".to_string(),
-    ];
-
-    tasks.add(title, tags);
+    let mut tasks = TaskList::load(TASK_PATH);
 
     tasks.list();
     loop {
         take_input(&mut tasks);
     }
 }
+
+
+
+//HELPER FUNCTIONS
 
 
 fn take_input(tasks: &mut TaskList) {
@@ -140,13 +193,27 @@ fn take_input(tasks: &mut TaskList) {
 
             let mut mode = AddMode::None;
 
+            let mut due: Option<DateTime<Local>> = None;
+
             for arg in &args {
                 match arg.as_str() {
                     "-t" | "-title" => mode = AddMode::Title,
                     "-tg" | "-tags" => mode = AddMode::Tags,
+                    "-due" => mode = AddMode::Due,
                     _ => match mode {
                         AddMode::Title => title_parts.push(arg.clone()),
                         AddMode::Tags => tag_parts.push(arg.clone()),
+                        AddMode::Due => {
+                            match parse_duration(arg) {
+                                Ok(duration) => {
+                                    let now = Local::now();
+                                    due = Some(now + chrono::Duration::from_std(duration).unwrap());
+                                }
+                                Err(_) => {
+                                    println!("Error parsing time.")
+                                }
+                            }
+                        }
                         AddMode::None => {}
                     }
                 }
@@ -155,7 +222,8 @@ fn take_input(tasks: &mut TaskList) {
             let title = title_parts.join(" ");
 
             if !title.is_empty() {
-                tasks.add(&title, tag_parts);
+                tasks.add(&title, tag_parts, due);
+                tasks.save_to_json(TASK_PATH);
             } else {
                 println!("Error add a title using -t flag");
             }
@@ -188,6 +256,7 @@ fn take_input(tasks: &mut TaskList) {
                         match tasks.get_task(num) {
                             Some(task) => {
                                 task.mark_completed();
+                                tasks.save_to_json(TASK_PATH);
                             }
                             None => {println!("Invalid task returned");}
                         }
@@ -206,8 +275,14 @@ fn take_input(tasks: &mut TaskList) {
             }
 
             match mode {
-                ClearMode::All => {tasks.clear_all();},
-                ClearMode::Done => {tasks.clear_done();}
+                ClearMode::All => {
+                    tasks.clear_all();
+                    tasks.save_to_json(TASK_PATH);
+                },
+                ClearMode::Done => {
+                    tasks.clear_done();
+                    tasks.save_to_json(TASK_PATH);
+                }
             }
         }
         Some(_other) => {

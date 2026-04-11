@@ -11,4 +11,4 @@ exit -> exit the program
 
 ## WIP
 
-Reading from files through JSON -> Specified rust library serde and serde json
+Add time through humantime crate in rust. -due "2h" , "3d"
