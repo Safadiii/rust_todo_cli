@@ -23,7 +23,8 @@ enum AddMode {
 }
 enum ListMode {
     Extended,
-    Standard
+    Standard,
+    Sorted
 }
 enum ClearMode {
     All,
@@ -154,6 +155,21 @@ impl TaskList {
             TaskList { tasks: vec![], next_id: 1 }
         })
     }
+    fn sort_by_deadline(&mut self) {
+        let now = Local::now();
+
+        self.tasks.sort_by(|a, b| {
+            let a_diff = a.due.map(|d| d - now);
+            let b_diff = b.due.map(|d| d - now);
+
+            match (a_diff, b_diff) {
+                (Some(a), Some(b)) => a.cmp(&b),
+                (Some(_a), None) => std::cmp::Ordering::Less,
+                (None, Some(_b)) => std::cmp::Ordering::Greater,
+                (None, None) => std::cmp::Ordering::Equal,
+            }
+        });
+    }
 }
 
 
@@ -237,13 +253,14 @@ fn take_input(tasks: &mut TaskList) {
             for arg in &args {
                 match arg.as_str() {
                     "-ext" | "-e" | "-extended" => mode = ListMode::Extended,
+                    "-sort" | "-sorted" => mode = ListMode::Sorted,
                     _ => mode = ListMode::Standard,
-
                 }
             }
             match mode {
                 ListMode::Extended => tasks.list_extended(),
                 ListMode::Standard => tasks.list(),
+                ListMode::Sorted => {tasks.sort_by_deadline(); tasks.list();}
             }
         },
         Some("exit") => {
