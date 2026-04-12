@@ -189,6 +189,9 @@ impl TaskList {
             .max()
             .unwrap_or(0) + 1;
     }
+    fn delete_task(&mut self, id: u32) {
+        self.tasks.retain(|t| t.id != id);
+    }
 }
 
 
@@ -325,6 +328,31 @@ fn take_input(tasks: &mut TaskList) {
                     tasks.save_to_json(TASK_PATH);
                 }
             }
+        },
+        Some("delete") => {
+            if args.is_empty() {
+                println!("There should be at least 1 id")
+            }
+            let mut ids: Vec<u32> = Vec::new();
+            for arg in &args {
+                match arg.parse::<u32>() {
+                    Ok(id) => {ids.push(id)},
+                    Err(_) => {println!("Could not parse this argument. Invalid ID: {}", arg);}
+                }
+            }
+            let mut counter: u32 = 0;
+
+            if !ids.is_empty() {
+                for id in ids {
+                    match tasks.get_task(id) {
+                        Some(_) => {tasks.delete_task(id); counter += 1;}
+                        None => {println!("Invalid ID: {}", id)}
+                    }
+                }
+            }
+            println!("Deleted {} task(s)", counter);
+            tasks.next_id();
+            tasks.save_to_json(TASK_PATH);
         }
         Some(_other) => {
             display_commands();
