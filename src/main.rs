@@ -28,7 +28,8 @@ enum ListMode {
 }
 enum ClearMode {
     All,
-    Done
+    Done,
+    OverDue
 }
 impl fmt::Display for Status {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -66,8 +67,8 @@ struct TaskList {
 
 impl TaskList {
     fn add(&mut self, title: &str, tags: Vec<String>, due: Option<DateTime<Local>>) {
+        self.next_id();
         let id = self.next_id;
-        self.next_id += 1;
         self.tasks.push(Task::create(id, title, tags, due));
     }
     fn list(&self) {
@@ -115,7 +116,18 @@ impl TaskList {
     }
     fn clear_all(&mut self) {
         self.tasks.clear();
-        self.next_id = 1;
+        self.next_id();
+    }
+    fn clear_overdue(&mut self) {
+        let now = Local::now();
+        self.tasks.retain(|task| {
+            if let Some(due) = task.due {
+                due > now
+            } else {
+                true
+            }
+        });
+        self.next_id();
     }
     fn save_to_json(&self, path: &str) {
         let json = serde_json::to_string_pretty(self).expect("Could not serialize tasks list.");
@@ -169,6 +181,13 @@ impl TaskList {
                 (None, None) => std::cmp::Ordering::Equal,
             }
         });
+    }
+    fn next_id(&mut self) {
+        self.next_id = self.tasks
+            .iter()
+            .map(|t| t.id)
+            .max()
+            .unwrap_or(0) + 1;
     }
 }
 
@@ -287,6 +306,7 @@ fn take_input(tasks: &mut TaskList) {
             for arg in &args {
                 match arg.as_str() {
                     "-all" | "-a" => {mode = ClearMode::All}
+                    "-overdue" | "-od" => {mode = ClearMode::OverDue}
                     _ => {}
                 }
             }
@@ -298,6 +318,10 @@ fn take_input(tasks: &mut TaskList) {
                 },
                 ClearMode::Done => {
                     tasks.clear_done();
+                    tasks.save_to_json(TASK_PATH);
+                },
+                ClearMode::OverDue => {
+                    tasks.clear_overdue();
                     tasks.save_to_json(TASK_PATH);
                 }
             }

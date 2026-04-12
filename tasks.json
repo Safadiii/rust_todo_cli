@@ -2,20 +2,18 @@
   "tasks": [
     {
       "id": 1,
-      "title": "study -tgs Grades School",
+      "title": "Shopping",
       "tags": [],
       "status": "InProgress",
-      "due": "2026-04-11T22:18:03.699931+03:00"
+      "due": null
     },
     {
       "id": 2,
-      "title": "Help Abed",
-      "tags": [
-        "Schoolwork"
-      ],
+      "title": "Homework",
+      "tags": [],
       "status": "InProgress",
-      "due": "2026-04-11T21:10:07.988649+03:00"
+      "due": "2026-04-12T16:53:56.137580+03:00"
     }
   ],
-  "next_id": 3
+  "next_id": 2
 }
