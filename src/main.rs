@@ -4,10 +4,18 @@ use std::fmt;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
+use color_eyre::Result;
 use chrono::{DateTime, Local};
+use crossterm::event::KeyCode;
+use crossterm::event::KeyEvent;
+use crossterm::event::KeyEventKind;
 use humantime::format_duration;
+use ratatui::DefaultTerminal;
+use ratatui::style::Stylize;
+use ratatui::widgets::Widget;
 use serde::{Serialize, Deserialize};
 use humantime::parse_duration;
+use ratatui::{Frame, text::Line};
 
 const TASK_PATH: &str = "tasks.json";
 
@@ -195,19 +203,6 @@ impl TaskList {
 }
 
 
-// MAIN INPUT LOOP
-fn main() {
-    //input loop
-    let mut tasks = TaskList::load(TASK_PATH);
-
-    tasks.list();
-    loop {
-        take_input(&mut tasks);
-    }
-}
-
-
-
 //HELPER FUNCTIONS
 
 
@@ -389,4 +384,63 @@ fn display_commands() {
     println!("  → Exit the program\n");
 
     println!("==============================\n");
+}
+
+
+
+//Ratatui 
+/*
+Needs an app struct with an exit flag
+Run the loop with the app struct
+Display Tasks for now and exit with a letter
+*/
+// MAIN INPUT LOOP
+fn main() -> io::Result<()> {
+    //input loop
+    let mut tasks = TaskList::load(TASK_PATH);
+
+    // tasks.list();
+    // loop {
+    //     take_input(&mut tasks);
+    // }
+    // color_eyre::install()?;
+    let mut terminal = ratatui::init();
+    let mut app = App { exit: false };
+    let app_result = app.run(&mut terminal);
+    ratatui::restore();
+    app_result
+
+}
+
+pub struct  App {
+    exit: bool,
+}
+impl App {
+    fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+        while !self.exit {
+            match crossterm::event::read()? {
+                crossterm::event::Event::Key(key_event) => self.handle_key_event(key_event)?,
+                _ => {}
+            }
+            terminal.draw(|frame| self.draw(frame))?;
+        }
+        Ok(())
+    }
+    fn draw(&self, frame: &mut Frame) {
+        frame.render_widget(self, frame.area());
+    }
+    fn handle_key_event(&mut self, key_event: KeyEvent) -> io::Result<()> {
+        if key_event.kind == KeyEventKind::Press && key_event.code == KeyCode::Char('q') {
+            self.exit = true;
+        }
+        Ok(())
+    }
+}
+
+impl Widget for &App {
+    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
+        where
+            Self: Sized {
+        Line::from("Tasks Overview").centered().bold().render(area, buf);
+    }
 }
