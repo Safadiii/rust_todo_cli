@@ -6,16 +6,29 @@ use std::io::Write;
 use std::path::Path;
 use color_eyre::Result;
 use chrono::{DateTime, Local};
+use color_eyre::eyre::Ok;
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use crossterm::event::KeyEventKind;
 use humantime::format_duration;
 use ratatui::DefaultTerminal;
-use ratatui::style::Stylize;
-use ratatui::widgets::Widget;
+use ratatui::layout::Alignment;
+use ratatui::layout::Constraint;
+use ratatui::layout::Direction;
+use ratatui::layout::Layout;
+use ratatui::style::Color;
+use ratatui::style::Modifier;
+use ratatui::text::Line;
+use ratatui::text::Span;
+use ratatui::widgets::Block;
+use ratatui::widgets::Borders;
+use ratatui::widgets::List;
+use ratatui::widgets::ListItem;
+use ratatui::widgets::ListState;
+use ratatui::widgets::Paragraph;
 use serde::{Serialize, Deserialize};
 use humantime::parse_duration;
-use ratatui::{Frame, text::Line};
+use ratatui::{Frame, style::Style, layout::Rect};
 
 const TASK_PATH: &str = "tasks.json";
 
@@ -206,157 +219,157 @@ impl TaskList {
 //HELPER FUNCTIONS
 
 
-fn take_input(tasks: &mut TaskList) {
+// fn take_input(tasks: &mut TaskList) {
 
-    //Input from the CLI
-    let mut input: String = String::new();
+//     //Input from the CLI
+//     let mut input: String = String::new();
 
-    io::stdin().read_line(&mut input).expect("Could not read line");
+//     io::stdin().read_line(&mut input).expect("Could not read line");
 
-    let mut parts = input.split_whitespace();
+//     let mut parts = input.split_whitespace();
 
-    let cmd = parts.next();
-    let args: Vec<String> = parts.map(str::to_owned).collect();
+//     let cmd = parts.next();
+//     let args: Vec<String> = parts.map(str::to_owned).collect();
 
-    match cmd {
-        Some("add") => {
-            //initialize the empty vector strings
-            let mut title_parts: Vec<String> = Vec::new();
-            let mut tag_parts: Vec<String> = Vec::new();
+//     match cmd {
+//         Some("add") => {
+//             //initialize the empty vector strings
+//             let mut title_parts: Vec<String> = Vec::new();
+//             let mut tag_parts: Vec<String> = Vec::new();
 
-            let mut mode = AddMode::None;
+//             let mut mode = AddMode::None;
 
-            let mut due: Option<DateTime<Local>> = None;
+//             let mut due: Option<DateTime<Local>> = None;
 
-            for arg in &args {
-                match arg.as_str() {
-                    "-t" | "-title" => mode = AddMode::Title,
-                    "-tg" | "-tags" => mode = AddMode::Tags,
-                    "-due" => mode = AddMode::Due,
-                    _ => match mode {
-                        AddMode::Title => title_parts.push(arg.clone()),
-                        AddMode::Tags => tag_parts.push(arg.clone()),
-                        AddMode::Due => {
-                            match parse_duration(arg) {
-                                Ok(duration) => {
-                                    let now = Local::now();
-                                    due = Some(now + chrono::Duration::from_std(duration).unwrap());
-                                }
-                                Err(_) => {
-                                    println!("Error parsing time.")
-                                }
-                            }
-                        }
-                        AddMode::None => {}
-                    }
-                }
-            }
+//             for arg in &args {
+//                 match arg.as_str() {
+//                     "-t" | "-title" => mode = AddMode::Title,
+//                     "-tg" | "-tags" => mode = AddMode::Tags,
+//                     "-due" => mode = AddMode::Due,
+//                     _ => match mode {
+//                         AddMode::Title => title_parts.push(arg.clone()),
+//                         AddMode::Tags => tag_parts.push(arg.clone()),
+//                         AddMode::Due => {
+//                             match parse_duration(arg) {
+//                                 Ok(duration) => {
+//                                     let now = Local::now();
+//                                     due = Some(now + chrono::Duration::from_std(duration).unwrap());
+//                                 }
+//                                 Err(_) => {
+//                                     println!("Error parsing time.")
+//                                 }
+//                             }
+//                         }
+//                         AddMode::None => {}
+//                     }
+//                 }
+//             }
 
-            let title = title_parts.join(" ");
+//             let title = title_parts.join(" ");
 
-            if !title.is_empty() {
-                tasks.add(&title, tag_parts, due);
-                tasks.save_to_json(TASK_PATH);
-            } else {
-                println!("Error add a title using -t flag");
-            }
-        }
+//             if !title.is_empty() {
+//                 tasks.add(&title, tag_parts, due);
+//                 tasks.save_to_json(TASK_PATH);
+//             } else {
+//                 println!("Error add a title using -t flag");
+//             }
+//         }
 
-        Some("help") => {
-            display_commands();
-        },
-        Some("list") | Some("ls") => {
-            let mut mode = ListMode::Standard;
-            for arg in &args {
-                match arg.as_str() {
-                    "-ext" | "-e" | "-extended" => mode = ListMode::Extended,
-                    "-sort" | "-sorted" => mode = ListMode::Sorted,
-                    _ => mode = ListMode::Standard,
-                }
-            }
-            match mode {
-                ListMode::Extended => tasks.list_extended(),
-                ListMode::Standard => tasks.list(),
-                ListMode::Sorted => {tasks.sort_by_deadline(); tasks.list();}
-            }
-        },
-        Some("exit") => {
-            std::process::exit(23);
-        },
-        Some("done") => {
-            if let [first] = args.as_slice() {
-                match first.parse::<u32>() {
-                    Ok(num) => {
-                        match tasks.get_task(num) {
-                            Some(task) => {
-                                task.mark_completed();
-                                tasks.save_to_json(TASK_PATH);
-                            }
-                            None => {println!("Invalid task returned");}
-                        }
-                    }
-                    Err(_) => {println!("Invalid number - Cannot be parsed")}
-                }
-            }
-        },
-        Some("clear") => {
-            let mut mode = ClearMode::Done;
-            for arg in &args {
-                match arg.as_str() {
-                    "-all" | "-a" => {mode = ClearMode::All}
-                    "-overdue" | "-od" => {mode = ClearMode::OverDue}
-                    _ => {}
-                }
-            }
+//         Some("help") => {
+//             display_commands();
+//         },
+//         Some("list") | Some("ls") => {
+//             let mut mode = ListMode::Standard;
+//             for arg in &args {
+//                 match arg.as_str() {
+//                     "-ext" | "-e" | "-extended" => mode = ListMode::Extended,
+//                     "-sort" | "-sorted" => mode = ListMode::Sorted,
+//                     _ => mode = ListMode::Standard,
+//                 }
+//             }
+//             match mode {
+//                 ListMode::Extended => tasks.list_extended(),
+//                 ListMode::Standard => tasks.list(),
+//                 ListMode::Sorted => {tasks.sort_by_deadline(); tasks.list();}
+//             }
+//         },
+//         Some("exit") => {
+//             std::process::exit(23);
+//         },
+//         Some("done") => {
+//             if let [first] = args.as_slice() {
+//                 match first.parse::<u32>() {
+//                     Ok(num) => {
+//                         match tasks.get_task(num) {
+//                             Some(task) => {
+//                                 task.mark_completed();
+//                                 tasks.save_to_json(TASK_PATH);
+//                             }
+//                             None => {println!("Invalid task returned");}
+//                         }
+//                     }
+//                     Err(_) => {println!("Invalid number - Cannot be parsed")}
+//                 }
+//             }
+//         },
+//         Some("clear") => {
+//             let mut mode = ClearMode::Done;
+//             for arg in &args {
+//                 match arg.as_str() {
+//                     "-all" | "-a" => {mode = ClearMode::All}
+//                     "-overdue" | "-od" => {mode = ClearMode::OverDue}
+//                     _ => {}
+//                 }
+//             }
 
-            match mode {
-                ClearMode::All => {
-                    tasks.clear_all();
-                    tasks.save_to_json(TASK_PATH);
-                },
-                ClearMode::Done => {
-                    tasks.clear_done();
-                    tasks.save_to_json(TASK_PATH);
-                },
-                ClearMode::OverDue => {
-                    tasks.clear_overdue();
-                    tasks.save_to_json(TASK_PATH);
-                }
-            }
-        },
-        Some("delete") => {
-            if args.is_empty() {
-                println!("There should be at least 1 id")
-            }
-            let mut ids: Vec<u32> = Vec::new();
-            for arg in &args {
-                match arg.parse::<u32>() {
-                    Ok(id) => {ids.push(id)},
-                    Err(_) => {println!("Could not parse this argument. Invalid ID: {}", arg);}
-                }
-            }
-            let mut counter: u32 = 0;
+//             match mode {
+//                 ClearMode::All => {
+//                     tasks.clear_all();
+//                     tasks.save_to_json(TASK_PATH);
+//                 },
+//                 ClearMode::Done => {
+//                     tasks.clear_done();
+//                     tasks.save_to_json(TASK_PATH);
+//                 },
+//                 ClearMode::OverDue => {
+//                     tasks.clear_overdue();
+//                     tasks.save_to_json(TASK_PATH);
+//                 }
+//             }
+//         },
+//         Some("delete") => {
+//             if args.is_empty() {
+//                 println!("There should be at least 1 id")
+//             }
+//             let mut ids: Vec<u32> = Vec::new();
+//             for arg in &args {
+//                 match arg.parse::<u32>() {
+//                     Ok(id) => {ids.push(id)},
+//                     Err(_) => {println!("Could not parse this argument. Invalid ID: {}", arg);}
+//                 }
+//             }
+//             let mut counter: u32 = 0;
 
-            if !ids.is_empty() {
-                for id in ids {
-                    match tasks.get_task(id) {
-                        Some(_) => {tasks.delete_task(id); counter += 1;}
-                        None => {println!("Invalid ID: {}", id)}
-                    }
-                }
-            }
-            println!("Deleted {} task(s)", counter);
-            tasks.next_id();
-            tasks.save_to_json(TASK_PATH);
-        }
-        Some(_other) => {
-            display_commands();
-        },
-        None => {
-            println!("Error");
-        }
-    }
-}
+//             if !ids.is_empty() {
+//                 for id in ids {
+//                     match tasks.get_task(id) {
+//                         Some(_) => {tasks.delete_task(id); counter += 1;}
+//                         None => {println!("Invalid ID: {}", id)}
+//                     }
+//                 }
+//             }
+//             println!("Deleted {} task(s)", counter);
+//             tasks.next_id();
+//             tasks.save_to_json(TASK_PATH);
+//         }
+//         Some(_other) => {
+//             display_commands();
+//         },
+//         None => {
+//             println!("Error");
+//         }
+//     }
+// }
 
 fn display_commands() {
     println!("\n=== AVAILABLE COMMANDS ===\n");
@@ -395,52 +408,181 @@ Run the loop with the app struct
 Display Tasks for now and exit with a letter
 */
 // MAIN INPUT LOOP
-fn main() -> io::Result<()> {
+fn main() -> Result<()> {
     //input loop
-    let mut tasks = TaskList::load(TASK_PATH);
+    let tasks = TaskList::load(TASK_PATH);
 
     // tasks.list();
     // loop {
     //     take_input(&mut tasks);
     // }
-    // color_eyre::install()?;
-    let mut terminal = ratatui::init();
-    let mut app = App { exit: false };
-    let app_result = app.run(&mut terminal);
-    ratatui::restore();
-    app_result
-
+    color_eyre::install()?;
+    ratatui::run(|terminal  | App::new(tasks).run(terminal))
 }
 
-pub struct  App {
+pub struct App {
     exit: bool,
+    taskslist: TaskList,
+    list_state: ListState,
 }
 impl App {
-    fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+    fn new(tasks_list: TaskList) -> Self {
+        let mut list_state = ListState::default();
+        list_state.select(Some(0));
+        Self {
+            exit: false,
+            taskslist: tasks_list,
+            list_state,
+        }
+    }
+    fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         while !self.exit {
+            terminal.draw(|frame| self.draw(frame))?;
             match crossterm::event::read()? {
                 crossterm::event::Event::Key(key_event) => self.handle_key_event(key_event)?,
                 _ => {}
             }
-            terminal.draw(|frame| self.draw(frame))?;
         }
         Ok(())
     }
-    fn draw(&self, frame: &mut Frame) {
-        frame.render_widget(self, frame.area());
-    }
-    fn handle_key_event(&mut self, key_event: KeyEvent) -> io::Result<()> {
-        if key_event.kind == KeyEventKind::Press && key_event.code == KeyCode::Char('q') {
-            self.exit = true;
+    fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
+        if key_event.kind != KeyEventKind::Press {
+            return Ok(());
+        }
+        match key_event.code {
+            KeyCode::Char('q') => self.exit = true,
+
+            KeyCode::Down | KeyCode::Char('j') => {
+                let i = match self.list_state.selected() {
+                    Some(i) => i + 1,
+                    None => 0,
+                };
+
+                if i < self.taskslist.tasks.len() {
+                    self.list_state.select(Some(i));
+                }
+            }
+
+            KeyCode::Up | KeyCode::Char('k') => {
+                let i = match self.list_state.selected() {
+                    Some(i) => i.saturating_sub(1),
+                    None => 0,
+                };
+                self.list_state.select(Some(i));
+            }
+            _ => {}
         }
         Ok(())
+    }
+
+    fn render_tasks_block(&mut self, frame: &mut Frame, area: Rect) {
+        let items: Vec<ListItem> = self.taskslist.tasks
+                    .iter()
+                    .map(|task| {
+                        let (status, style) = match task.status {
+                            Status::Done => ("[DONE]", Style::default().fg(Color::White)),
+                            Status::InProgress => ("[IN PROGRESS]", Style::default().fg(Color::White)),
+                        };
+
+                        let content = format!("{}. {} {}", task.id, task.title, status);
+
+                        ListItem::new(content).style(style)
+                    })
+                    .collect();
+        let list = List::new(items)
+                    .block(
+                        Block::default()
+                        .borders(Borders::ALL)
+                        .title("Tasks").style(Color::White)
+                    ).highlight_style(Modifier::REVERSED).highlight_symbol(">> ");
+        frame.render_stateful_widget(list, area, &mut self.list_state);
+    }
+
+    fn render_details(&self, frame: &mut Frame, area: Rect) {
+        let selected = self.list_state.selected();
+
+        let content = if let Some(i) = selected {
+            if let Some(task) = self.taskslist.tasks.get(i) {
+                let tags = if task.tags.is_empty() {
+                    "None".to_string()
+                } else {
+                    task.tags
+                        .iter()
+                        .map(|t| format!("- {}", t))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                };
+
+                format!(
+                    "Title: {}\n\nStatus: {:?}\n\nTags:\n{}",
+                    task.title, task.status, tags
+                )
+            } else {
+                "No task selected".to_string()
+            }
+        } else {
+            "No task selected".to_string()
+        };
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title("Details");
+
+        frame.render_widget(Paragraph::new(content).block(block), area);
+    }
+
+    fn render_footer(&self, frame: &mut Frame, area: Rect) {
+        let controls = vec![
+                Line::from(vec![
+                    Span::styled("q", Style::default().fg(Color::Red).add_modifier(Modifier::UNDERLINED)),
+                    Span::raw(" → Quit   "),
+                    Span::styled("↑/↓", Style::default().add_modifier(Modifier::UNDERLINED)),
+                    Span::raw(" → Navigate   "),
+                    Span::styled("j/k", Style::default().add_modifier(Modifier::UNDERLINED)),
+                    Span::raw(" → Navigate   "),
+                    Span::styled("d", Style::default().add_modifier(Modifier::UNDERLINED)),
+                    Span::raw(" → Delete   "),
+                    Span::styled("x", Style::default().add_modifier(Modifier::UNDERLINED)),
+                    Span::raw(" → Done"),
+                ])
+            ];
+
+            let footer = Paragraph::new(controls)
+                .alignment(Alignment::Center)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title(
+                            Line::from(Span::styled(
+                                " Controls ",
+                                Style::default().add_modifier(Modifier::BOLD),
+                            ))
+                            .centered(),
+                        ),
+                );
+        frame.render_widget(footer, area);
+    }
+    
+    fn draw(&mut self, frame: &mut Frame) {
+        let area = frame.area();
+
+        let vertical = Layout::default()
+                            .direction(Direction::Vertical)
+                            .constraints([
+                                Constraint::Min(0),
+                                Constraint::Length(3),]
+                            ).split(area);
+
+        let top_chunks = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([
+                        Constraint::Percentage(50),
+                        Constraint::Percentage(50),
+                    ]).split(vertical[0]);
+        
+        self.render_tasks_block(frame, top_chunks[0]);
+        self.render_details(frame, top_chunks[1]);
+        self.render_footer(frame, vertical[1]);
     }
 }
 
-impl Widget for &App {
-    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
-        where
-            Self: Sized {
-        Line::from("Tasks Overview").centered().bold().render(area, buf);
-    }
-}

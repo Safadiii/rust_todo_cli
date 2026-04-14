@@ -1,4 +1,19 @@
 {
-  "tasks": [],
-  "next_id": 1
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Shopping",
+      "tags": ["Clothes", "Groceries"],
+      "status": "InProgress",
+      "due": null
+    },
+    {
+      "id": 2,
+      "title": "Gym",
+      "tags": [],
+      "status": "Done",
+      "due": null
+    }
+  ],
+  "next_id": 2
 }
