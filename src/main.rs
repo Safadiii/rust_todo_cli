@@ -4,28 +4,34 @@ use std::fmt;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
+use std::time::Duration;
 use color_eyre::Result;
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Local, Duration as ChronoDuration};
 use color_eyre::eyre::Ok;
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use crossterm::event::KeyEventKind;
 use humantime::format_duration;
 use ratatui::DefaultTerminal;
+use ratatui::text::Text;
 use ratatui::layout::Alignment;
 use ratatui::layout::Constraint;
 use ratatui::layout::Direction;
 use ratatui::layout::Layout;
 use ratatui::style::Color;
 use ratatui::style::Modifier;
+use ratatui::style::Stylize;
 use ratatui::text::Line;
 use ratatui::text::Span;
 use ratatui::widgets::Block;
 use ratatui::widgets::Borders;
+use ratatui::widgets::Clear;
 use ratatui::widgets::List;
 use ratatui::widgets::ListItem;
 use ratatui::widgets::ListState;
 use ratatui::widgets::Paragraph;
+use ratatui::widgets::TitlePosition;
+use serde::de;
 use serde::{Serialize, Deserialize};
 use humantime::parse_duration;
 use ratatui::{Frame, style::Style, layout::Rect};
@@ -400,6 +406,12 @@ fn display_commands() {
 }
 
 
+fn parse_due(input: &str) -> Option<DateTime<Local>> {
+    let duration = parse_duration(input).ok()?;
+    let chrono_duration = chrono::Duration::from_std(duration).ok()?;
+    Some(Local::now() + chrono_duration)
+}
+
 
 //Ratatui 
 /*
@@ -410,7 +422,11 @@ Display Tasks for now and exit with a letter
 // MAIN INPUT LOOP
 fn main() -> Result<()> {
     //input loop
-    let tasks = TaskList::load(TASK_PATH);
+    let mut tasks = TaskList::load(TASK_PATH);
+    let due = parse_due("2h");
+
+    tasks.add("Helping People", vec!["Eating food".to_string()], due);
+
 
     // tasks.list();
     // loop {
@@ -420,10 +436,24 @@ fn main() -> Result<()> {
     ratatui::run(|terminal  | App::new(tasks).run(terminal))
 }
 
+#[derive(Debug, Clone, Copy)] // Add Clone and Copy here
+
+enum AddTaskState {
+    InputMode,
+    EditingMode,
+    None
+}
+enum State {
+    AddingTask,
+    EditingTask,
+    None
+}
+
 pub struct App {
     exit: bool,
     taskslist: TaskList,
     list_state: ListState,
+    state: State,
 }
 impl App {
     fn new(tasks_list: TaskList) -> Self {
@@ -433,6 +463,7 @@ impl App {
             exit: false,
             taskslist: tasks_list,
             list_state,
+            state: State::None,
         }
     }
     fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
@@ -446,6 +477,14 @@ impl App {
         Ok(())
     }
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
+        match self.state {  
+            State::None => {self.handle_normal(key_event)?},
+            State::AddingTask => {self.handle_adding_task(key_event)?},
+            _ => {}
+        }
+        Ok(())
+    }
+    fn handle_normal(&mut self, key_event: KeyEvent) -> Result<()> {
         if key_event.kind != KeyEventKind::Press {
             return Ok(());
         }
@@ -470,9 +509,76 @@ impl App {
                 };
                 self.list_state.select(Some(i));
             }
+
+            KeyCode::Char('a') => {
+                match self.state {
+                    State::None => {
+                        self.state = State::AddingTask;
+                    }
+                    State::AddingTask => {
+                        self.state = State::None;
+                    }
+                    _ => {}
+                }
+            }
             _ => {}
         }
         Ok(())
+    }
+    fn handle_adding_task(&mut self, key_event: KeyEvent) -> Result<()> {
+        match key_event.code {
+            KeyCode::Char('q') => {
+                self.exit = true;
+            }
+            _ => {}
+        }
+
+        Ok(())
+    }
+
+    fn render_add_task_popup(&mut self, frame: &mut Frame, area: Rect) {
+        let add_task_block = Block::bordered().title("Add Task").fg(Color::LightYellow);
+        let centered_area = area.centered(Constraint::Percentage(60), Constraint::Percentage(60));
+
+        let layout = Layout::vertical([
+            Constraint::Percentage(80),
+            Constraint::Percentage(20),]
+        ).margin(1);
+        
+        let details_layout = Layout::vertical([
+            Constraint::Length(3),
+            Constraint::Length(5),
+            Constraint::Length(3),
+        ]).margin(1);
+
+        let [details_area, footer_area] = centered_area.layout(&layout);
+
+        let [task_title_area, task_tags_area, task_due_area] = details_area.layout(&details_layout);
+
+        let help_vec = vec!["Press ".into(), "q".bold(), " to exit".into()];
+        
+        let help_text = Text::from(Line::from(help_vec).patch_style(Style::default()));
+
+        let help_msg = Paragraph::new(help_text);
+
+        let title_block = Block::default().title("Title").borders(Borders::ALL);
+        let tags_block = Block::default().title("Tags").borders(Borders::ALL);
+        let due_block = Block::default().title("Due").borders(Borders::ALL);
+
+
+        let title = Paragraph::new("Hello").block(title_block);
+
+
+        frame.render_widget(Clear, centered_area);
+
+        frame.render_widget(add_task_block, centered_area);
+
+        frame.render_widget(help_msg, footer_area);
+        frame.render_widget(title, task_title_area);
+        frame.render_widget(due_block, task_due_area);
+        frame.render_widget(tags_block, task_tags_area);
+
+
     }
 
     fn render_tasks_block(&mut self, frame: &mut Frame, area: Rect) {
@@ -513,9 +619,19 @@ impl App {
                         .join("\n")
                 };
 
+                let now = Local::now();
+
+                let due_text = if let Some(due) = task.due {
+                    match (due - now).to_std() {
+                        std::result::Result::Ok(dur) => format!("Due: {}", format_duration(dur)),
+                        Err(_) => format!("Overdue"),
+                    }
+                } else {
+                    "No due date".to_string()
+                };
                 format!(
-                    "Title: {}\n\nStatus: {:?}\n\nTags:\n{}",
-                    task.title, task.status, tags
+                    "Title: {}\n\nStatus: {:?}\n\nTags:\n{} \n\n{}",
+                    task.title, task.status, tags, due_text
                 )
             } else {
                 "No task selected".to_string()
@@ -583,6 +699,12 @@ impl App {
         self.render_tasks_block(frame, top_chunks[0]);
         self.render_details(frame, top_chunks[1]);
         self.render_footer(frame, vertical[1]);
+        match self.state {
+            State::AddingTask => {
+                self.render_add_task_popup(frame, area);
+            }
+            _ => {}
+        }
     }
 }
 

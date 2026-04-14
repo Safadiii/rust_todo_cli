@@ -11,5 +11,8 @@ exit -> exit the program
 
 ## WIP
 
-Add time through humantime crate in rust. -due "2h" , "3d" DONE
-Deleting through id or multiple ids, Currently almost works [EDGE_CASE] Multiple ids and one doesn't exist or an id not available functions correct but should print out that this id doesn't exists.
+Add due times to the TUI 
+Sort by Due times
+Adding tasks
+Editing tasks
+UI enhancements
