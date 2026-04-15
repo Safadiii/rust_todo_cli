@@ -431,6 +431,10 @@ fn char_to_byte_index(s: &str, char_index: usize) -> usize {
         .unwrap_or(s.len())
 }   
 
+fn due_parse(s: String) -> bool {
+    humantime::parse_duration(s.as_str()).is_ok()
+}
+
 //Ratatui 
 /*
 Needs an app struct with an exit flag
@@ -609,6 +613,25 @@ impl App {
                     KeyCode::Char('e') => {self.inputtingMode = true; self.move_cursor_to_end();}
                     KeyCode::Right => {self.char_index += 1; self.clamp_cursor();}
                     KeyCode::Left => {self.char_index = self.char_index.saturating_sub(1); self.clamp_cursor();}
+                    KeyCode::Enter => {
+                        let due = &mut self.due_input;
+                        if !self.title_input.is_empty() && !self.tags_input.is_empty() && due_parse(due.to_string()) {
+                            let now = Local::now();
+                            let duration = parse_duration(due).unwrap();
+                            let taskdue = Some(now + chrono::Duration::from_std(duration).unwrap());
+
+                            let tags: Vec<String> = self.tags_input
+                                .split_whitespace()
+                                .map(|x| x.to_string())
+                                .collect();
+                            self.taskslist.add(self.title_input.as_str(), tags, taskdue);
+                        }
+                        self.title_input = String::new();
+                        self.tags_input = String::new();
+                        self.due_input = String::new();
+                        self.focus = Focus::None;
+                        self.addtaskfield = AddTaskField::Title;
+                    }
                     _ => {}
             }
         } else {
@@ -626,6 +649,29 @@ impl App {
 
                     self.char_index += 1;
                 }
+                KeyCode::Backspace => {
+                    let input = match self.addtaskfield {
+                        AddTaskField::Title => {&mut self.title_input},
+                        AddTaskField::Tags => {&mut self.tags_input},
+                        AddTaskField::Due => {&mut self.due_input},
+                    };
+                    let mut c = self.char_index;
+
+                    if c > 0 {
+                        c = c.saturating_sub(1);
+                        let bytes = char_to_byte_index(input, c);
+                        input.remove(bytes);
+                    }
+                    self.clamp_cursor();
+                    self.move_cursor_to_end();
+                }
+                KeyCode::Enter => {
+                    match self.addtaskfield  {
+                        AddTaskField::Title => {self.addtaskfield = AddTaskField::Tags; self.clamp_cursor(); self.move_cursor_to_end();}
+                        AddTaskField::Tags => {self.addtaskfield = AddTaskField::Due; self.clamp_cursor(); self.move_cursor_to_end();}
+                        AddTaskField::Due => {self.addtaskfield = AddTaskField::Title; self.clamp_cursor(); self.move_cursor_to_end();}
+                    } 
+                }
                 _ => {}
             }
         }
@@ -634,7 +680,7 @@ impl App {
 
     fn render_add_task_popup(&mut self, frame: &mut Frame, area: Rect) {
         let add_task_block = Block::bordered().title("Add Task").fg(Color::White);
-        let centered_area = area.centered(Constraint::Percentage(60), Constraint::Percentage(60));
+        let centered_area = area.centered(Constraint::Percentage(60), Constraint::Percentage(75));
 
         let layout = Layout::vertical([
             Constraint::Percentage(80),
@@ -643,7 +689,7 @@ impl App {
         
         let details_layout = Layout::vertical([
             Constraint::Length(3),
-            Constraint::Length(5),
+            Constraint::Length(3),
             Constraint::Length(3),
         ]).margin(1);
 
@@ -677,9 +723,13 @@ impl App {
         );
 
         let text = Text::from(self.title_input.as_str());
+        let tags_text = Text::from(self.tags_input.as_str());
+        let due_text = Text::from(self.due_input.as_str());
 
 
         let title = Paragraph::new(text).block(title_block);
+        let tags = Paragraph::new(tags_text).block(tags_block);
+        let due = Paragraph::new(due_text).block(due_block);
 
 
         frame.render_widget(Clear, centered_area);
@@ -688,8 +738,8 @@ impl App {
 
         frame.render_widget(help_msg, footer_area);
         frame.render_widget(title, task_title_area);
-        frame.render_widget(due_block, task_due_area);
-        frame.render_widget(tags_block, task_tags_area);
+        frame.render_widget(due, task_due_area);
+        frame.render_widget(tags, task_tags_area);
 
         self.render_cursor(frame, (task_title_area, task_tags_area, task_due_area));
     }
