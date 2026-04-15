@@ -11,8 +11,8 @@ exit -> exit the program
 
 ## WIP
 
-Add due times to the TUI 
-Sort by Due times
-Adding tasks
+Add due times to the TUI = DONE
+Sort by Due times 
+Adding tasks = DONE
 Editing tasks
 UI enhancements

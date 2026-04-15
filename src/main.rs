@@ -28,13 +28,16 @@ use ratatui::style::Stylize;
 use ratatui::text::Line;
 use ratatui::text::Span;
 use ratatui::widgets::Block;
+use ratatui::widgets::BorderType;
 use ratatui::widgets::Borders;
 use ratatui::widgets::Clear;
 use ratatui::widgets::List;
 use ratatui::widgets::ListItem;
 use ratatui::widgets::ListState;
+use ratatui::widgets::Padding;
 use ratatui::widgets::Paragraph;
 use ratatui::widgets::TitlePosition;
+use ratatui::widgets::Wrap;
 use serde::de;
 use serde::{Serialize, Deserialize};
 use humantime::parse_duration;
@@ -471,6 +474,12 @@ enum AddTaskField {
     Due
 }
 
+enum MainFocus {
+    Task,
+    Detail,
+    None
+}
+
 pub struct App {
     exit: bool,
     taskslist: TaskList,
@@ -482,6 +491,7 @@ pub struct App {
     due_input: String,
     char_index: usize,
     inputtingMode: bool,
+    mainfocus: MainFocus,
 }
 impl App {
     fn new(tasks_list: TaskList) -> Self {
@@ -498,6 +508,7 @@ impl App {
             due_input: String::new(),
             char_index: 0,
             inputtingMode: false,
+            mainfocus: MainFocus::Task,
         }
     }
     pub fn exit(&mut self) {
@@ -594,6 +605,13 @@ impl App {
                     _ => {}
                 }
             }
+            KeyCode::Tab => {
+                match self.mainfocus {
+                    MainFocus::None => self.mainfocus = MainFocus::Task,
+                    MainFocus::Task => self.mainfocus = MainFocus::Detail,
+                    MainFocus::Detail => self.mainfocus = MainFocus::Task,
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -609,8 +627,31 @@ impl App {
                         }
                         self.clamp_cursor();
                     }
-                    KeyCode::Char('q') => {self.focus = Focus::None},
-                    KeyCode::Char('e') => {self.inputtingMode = true; self.move_cursor_to_end();}
+                    KeyCode::Char('j') => {
+                        match self.addtaskfield {
+                            AddTaskField::Title => {self.addtaskfield = AddTaskField::Tags; self.move_cursor_to_end();},
+                            AddTaskField::Due => {self.addtaskfield = AddTaskField::Title; self.move_cursor_to_end();},
+                            AddTaskField::Tags => {self.addtaskfield = AddTaskField::Due; self.move_cursor_to_end();},
+                        }
+                        self.clamp_cursor();
+                    }
+                    KeyCode::Char('k') => {
+                        match self.addtaskfield {
+                            AddTaskField::Title => {self.addtaskfield = AddTaskField::Due; self.move_cursor_to_end();},
+                            AddTaskField::Due => {self.addtaskfield = AddTaskField::Tags; self.move_cursor_to_end();},
+                            AddTaskField::Tags => {self.addtaskfield = AddTaskField::Title; self.move_cursor_to_end();},
+                        }
+                        self.clamp_cursor();
+                    }
+                    KeyCode::Char('c') => {
+                        match self.addtaskfield {
+                            AddTaskField::Title => {self.title_input.clear(); self.clamp_cursor();}
+                            AddTaskField::Tags => {self.tags_input.clear(); self.clamp_cursor();}
+                            AddTaskField::Due => {self.due_input.clear(); self.clamp_cursor();}
+                        }
+                    }
+                    KeyCode::Char('q') | KeyCode::Esc => {self.focus = Focus::None},
+                    KeyCode::Char('e') | KeyCode::Char('i') => {self.inputtingMode = true; self.move_cursor_to_end();}
                     KeyCode::Right => {self.char_index += 1; self.clamp_cursor();}
                     KeyCode::Left => {self.char_index = self.char_index.saturating_sub(1); self.clamp_cursor();}
                     KeyCode::Enter => {
@@ -679,33 +720,31 @@ impl App {
     }
 
     fn render_add_task_popup(&mut self, frame: &mut Frame, area: Rect) {
+        self.clamp_cursor();
         let add_task_block = Block::bordered().title("Add Task").fg(Color::White);
-        let centered_area = area.centered(Constraint::Percentage(60), Constraint::Percentage(75));
 
-        let layout = Layout::vertical([
-            Constraint::Percentage(80),
-            Constraint::Percentage(20),]
-        ).margin(1);
+        let centered_area = area.centered(Constraint::Percentage(50), Constraint::Max(15));
+
+        let popup_height = 13;
+
+
+        let popup_area = centered_area.centered(Constraint::Fill(1), Constraint::Length(popup_height as u16));
+
+        let block = Block::default().padding(Padding::horizontal(1)).inner(popup_area);
+
         
         let details_layout = Layout::vertical([
             Constraint::Length(3),
             Constraint::Length(3),
             Constraint::Length(3),
-        ]).margin(1);
+        ]);
 
-        let [details_area, footer_area] = centered_area.layout(&layout);
 
-        let [task_title_area, task_tags_area, task_due_area] = details_area.layout(&details_layout);
-
-        let help_vec = vec!["Press ".into(), "q".bold(), " to exit".into()];
-        
-        let help_text = Text::from(Line::from(help_vec).patch_style(Style::default()));
-
-        let help_msg = Paragraph::new(help_text);
+        let [task_title_area, task_tags_area, task_due_area] = block.layout(&details_layout);
 
         let title_block = Block::default().title("Title").borders(Borders::ALL).style(
             match self.addtaskfield {
-                AddTaskField::Title => Style::default().fg(Color::Yellow),
+                AddTaskField::Title => Style::default().fg(Color::LightYellow),
                 _ => Style::default(),
             }
         );
@@ -727,7 +766,7 @@ impl App {
         let due_text = Text::from(self.due_input.as_str());
 
 
-        let title = Paragraph::new(text).block(title_block);
+        let title = Paragraph::new(text).block(title_block).wrap(Wrap { trim: false});
         let tags = Paragraph::new(tags_text).block(tags_block);
         let due = Paragraph::new(due_text).block(due_block);
 
@@ -736,7 +775,6 @@ impl App {
 
         frame.render_widget(add_task_block, centered_area);
 
-        frame.render_widget(help_msg, footer_area);
         frame.render_widget(title, task_title_area);
         frame.render_widget(due, task_due_area);
         frame.render_widget(tags, task_tags_area);
@@ -758,12 +796,18 @@ impl App {
                         ListItem::new(content).style(style)
                     })
                     .collect();
+        let color = match self.mainfocus {
+            MainFocus::Task => Color::Indexed(73),
+            _ => Color::Indexed(250),
+        };
         let list = List::new(items)
                     .block(
                         Block::default()
                         .borders(Borders::ALL)
-                        .title("Tasks").style(Color::White)
-                    ).highlight_style(Modifier::REVERSED).highlight_symbol(">> ");
+                        .border_type(BorderType::Rounded)
+                        .border_style(Style::default().fg(color))
+                        .title("Tasks").style(Style::default().bg(Color::Indexed(240)))
+                    ).highlight_style(Style::default().add_modifier(Modifier::BOLD).bg(Color::Indexed(73))).highlight_symbol(">> ");
         frame.render_stateful_widget(list, area, &mut self.list_state);
     }
 
@@ -803,42 +847,83 @@ impl App {
             "No task selected".to_string()
         };
 
+        let color = match self.mainfocus {
+            MainFocus::Detail => Color::Indexed(73),
+            _ => Color::Indexed(250),
+        };
+
         let block = Block::default()
-            .borders(Borders::ALL)
-            .title("Details");
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded)
+                        .border_style(Style::default().fg(color))
+                        .title("Details").style(Style::default().bg(Color::Indexed(240)));
 
         frame.render_widget(Paragraph::new(content).block(block), area);
     }
 
     fn render_footer(&self, frame: &mut Frame, area: Rect) {
-        let controls = vec![
-                Line::from(vec![
-                    Span::styled("q", Style::default().fg(Color::Red).add_modifier(Modifier::UNDERLINED)),
-                    Span::raw(" → Quit   "),
-                    Span::styled("↑/↓", Style::default().add_modifier(Modifier::UNDERLINED)),
-                    Span::raw(" → Navigate   "),
-                    Span::styled("j/k", Style::default().add_modifier(Modifier::UNDERLINED)),
-                    Span::raw(" → Navigate   "),
-                    Span::styled("d", Style::default().add_modifier(Modifier::UNDERLINED)),
-                    Span::raw(" → Delete   "),
-                    Span::styled("x", Style::default().add_modifier(Modifier::UNDERLINED)),
-                    Span::raw(" → Done"),
-                ])
-            ];
+        let controls: Vec<Line<>> = match self.focus {
+            Focus::AddTaskPopup => {
+                if self.inputtingMode {
+                    vec![
+                        Line::from(vec![
+                            Span::styled("EDITING MODE:  ", Style::default().bg(Color::Reset).fg(Color::Red).add_modifier(Modifier::BOLD)),
+                            Span::styled("ESC", Style::default().bg(Color::Reset).fg(Color::White).add_modifier(Modifier::UNDERLINED)),
+                            Span::styled(" → STANDARD MODE   ", Style::default()),
+                            Span::styled("ENTER", Style::default().add_modifier(Modifier::UNDERLINED)),
+                            Span::raw(" → NEXT INPUT"),
+                        ])
+                    ]
+                } else {
+                    vec![
+                        Line::from(vec![
+                            Span::styled("STANDARD MODE:  ", Style::default().bg(Color::Reset).fg(Color::White).add_modifier(Modifier::BOLD)),
+                            Span::styled("Q", Style::default().bg(Color::Reset).fg(Color::White).add_modifier(Modifier::UNDERLINED)),
+                            Span::styled(" → CANCEL   ", Style::default()),
+                            Span::styled("DOWN/UP", Style::default().add_modifier(Modifier::UNDERLINED)),
+                            Span::raw(" → DOWN/UP   "),
+                            Span::styled("E/I", Style::default().add_modifier(Modifier::UNDERLINED)),
+                            Span::raw(" → EDIT FIELD   "),
+                            Span::styled("TAB", Style::default().add_modifier(Modifier::UNDERLINED)),
+                            Span::raw(" → NEXT FIELD   "),
+                            Span::styled("ENTER", Style::default().add_modifier(Modifier::UNDERLINED)),
+                            Span::raw(" → SUBMIT"),
+                        ])
+                    ]
+                }
+            }
+            Focus::None => {
+                vec![
+                    Line::from(vec![
+                        Span::styled("q", Style::default().fg(Color::Red).add_modifier(Modifier::UNDERLINED)),
+                        Span::raw(" → Quit   "),
+                        Span::styled("↑/↓", Style::default().add_modifier(Modifier::UNDERLINED)),
+                        Span::raw(" → Navigate   "),
+                        Span::styled("j/k", Style::default().add_modifier(Modifier::UNDERLINED)),
+                        Span::raw(" → Navigate   "),
+                        Span::styled("d", Style::default().add_modifier(Modifier::UNDERLINED)),
+                        Span::raw(" → Delete   "),
+                        Span::styled("x", Style::default().add_modifier(Modifier::UNDERLINED)),
+                        Span::raw(" → Done"),
+                    ])
+                ]
+            }
+        };
 
-            let footer = Paragraph::new(controls)
-                .alignment(Alignment::Center)
-                .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .title(
-                            Line::from(Span::styled(
-                                " Controls ",
-                                Style::default().add_modifier(Modifier::BOLD),
-                            ))
-                            .centered(),
-                        ),
-                );
+
+        let footer = Paragraph::new(controls)
+            .alignment(Alignment::Center)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(
+                        Line::from(Span::styled(
+                            " Controls ",
+                            Style::default().add_modifier(Modifier::BOLD),
+                        ))
+                        .centered(),
+                    ),
+            );
         frame.render_widget(footer, area);
     }
     
@@ -855,8 +940,8 @@ impl App {
         let top_chunks = Layout::default()
                     .direction(Direction::Horizontal)
                     .constraints([
-                        Constraint::Percentage(50),
-                        Constraint::Percentage(50),
+                        Constraint::Percentage(30),
+                        Constraint::Percentage(70),
                     ]).split(vertical[0]);
         
         self.render_tasks_block(frame, top_chunks[0]);
