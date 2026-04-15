@@ -1,8 +1,10 @@
+use std::char;
 use std::fs;
 use std::io;
 use std::fmt;
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::ops::Add;
 use std::path::Path;
 use std::time::Duration;
 use color_eyre::Result;
@@ -11,6 +13,8 @@ use color_eyre::eyre::Ok;
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use crossterm::event::KeyEventKind;
+use crossterm::event::KeyModifiers;
+use crossterm::event::ModifierKeyCode;
 use humantime::format_duration;
 use ratatui::DefaultTerminal;
 use ratatui::text::Text;
@@ -412,6 +416,20 @@ fn parse_due(input: &str) -> Option<DateTime<Local>> {
     Some(Local::now() + chrono_duration)
 }
 
+/*
+
+Helper Function
+
+*/
+
+
+//Changing char to bytes
+fn char_to_byte_index(s: &str, char_index: usize) -> usize {
+    s.char_indices()
+        .nth(char_index)
+        .map(|(i, _)| i)
+        .unwrap_or(s.len())
+}   
 
 //Ratatui 
 /*
@@ -438,22 +456,28 @@ fn main() -> Result<()> {
 
 #[derive(Debug, Clone, Copy)] // Add Clone and Copy here
 
-enum AddTaskState {
-    InputMode,
-    EditingMode,
-    None
+enum Focus {
+    None,
+    AddTaskPopup,
 }
-enum State {
-    AddingTask,
-    EditingTask,
-    None
+
+enum AddTaskField {
+    Title,
+    Tags,
+    Due
 }
 
 pub struct App {
     exit: bool,
     taskslist: TaskList,
     list_state: ListState,
-    state: State,
+    focus: Focus,
+    addtaskfield: AddTaskField,  //Selected field in add task popup
+    title_input: String,
+    tags_input: String,
+    due_input: String,
+    char_index: usize,
+    inputtingMode: bool,
 }
 impl App {
     fn new(tasks_list: TaskList) -> Self {
@@ -463,8 +487,17 @@ impl App {
             exit: false,
             taskslist: tasks_list,
             list_state,
-            state: State::None,
+            focus: Focus::None,
+            addtaskfield: AddTaskField::Title,
+            title_input: String::from("Hello"),
+            tags_input: String::new(),
+            due_input: String::new(),
+            char_index: 0,
+            inputtingMode: false,
         }
+    }
+    pub fn exit(&mut self) {
+        self.exit = true;
     }
     fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         while !self.exit {
@@ -476,15 +509,50 @@ impl App {
         }
         Ok(())
     }
+
+
+
+    //Cursor logic
+    fn clamp_cursor(&mut self) {
+        let len = match self.addtaskfield {
+            AddTaskField::Title => self.title_input.chars().count(),
+            AddTaskField::Tags => self.tags_input.chars().count(),
+            AddTaskField::Due => self.due_input.chars().count(),
+        };
+        self.char_index = self.char_index.clamp(0, len);
+    }
+
+    fn render_cursor(&self, frame: &mut Frame, areas: (Rect, Rect, Rect)) {
+        let (title, tags, due) = areas;
+        let (area, index) = match self.addtaskfield {
+            AddTaskField::Title => (title, self.char_index),
+            AddTaskField::Tags => (tags, self.char_index),
+            AddTaskField::Due => (due, self.char_index),
+        };
+
+        let x = area.x + 1 + index as u16;
+        let y = area.y + 1;
+
+        frame.set_cursor_position((x, y));
+    }
+    
+    fn move_cursor_to_end(&mut self) {
+        self.char_index = match self.addtaskfield {
+            AddTaskField::Title => {self.title_input.chars().count()}
+            AddTaskField::Tags => {self.tags_input.chars().count()}
+            AddTaskField::Due => {self.due_input.chars().count()}
+        };
+    }
+
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
-        match self.state {  
-            State::None => {self.handle_normal(key_event)?},
-            State::AddingTask => {self.handle_adding_task(key_event)?},
+        match self.focus {  
+            Focus::None => {self.handle_main(key_event)?},
+            Focus::AddTaskPopup => {self.handle_addtaskpopup(key_event)?},
             _ => {}
         }
         Ok(())
     }
-    fn handle_normal(&mut self, key_event: KeyEvent) -> Result<()> {
+    fn handle_main(&mut self, key_event: KeyEvent) -> Result<()> {
         if key_event.kind != KeyEventKind::Press {
             return Ok(());
         }
@@ -511,12 +579,13 @@ impl App {
             }
 
             KeyCode::Char('a') => {
-                match self.state {
-                    State::None => {
-                        self.state = State::AddingTask;
+                match self.focus {
+                    Focus::None => {
+                        self.focus = Focus::AddTaskPopup;
+                        self.addtaskfield = AddTaskField::Title;
                     }
-                    State::AddingTask => {
-                        self.state = State::None;
+                    Focus::AddTaskPopup => {
+                        self.focus = Focus::None;
                     }
                     _ => {}
                 }
@@ -525,19 +594,46 @@ impl App {
         }
         Ok(())
     }
-    fn handle_adding_task(&mut self, key_event: KeyEvent) -> Result<()> {
-        match key_event.code {
-            KeyCode::Char('q') => {
-                self.exit = true;
+    fn handle_addtaskpopup(&mut self, key_event: KeyEvent) -> Result<()> {
+        if !self.inputtingMode {
+                match key_event.code {
+                    KeyCode::Tab => {
+                        match self.addtaskfield {
+                            AddTaskField::Title => {self.addtaskfield = AddTaskField::Tags; self.move_cursor_to_end();},
+                            AddTaskField::Due => {self.addtaskfield = AddTaskField::Title; self.move_cursor_to_end();},
+                            AddTaskField::Tags => {self.addtaskfield = AddTaskField::Due; self.move_cursor_to_end();},
+                        }
+                        self.clamp_cursor();
+                    }
+                    KeyCode::Char('q') => {self.focus = Focus::None},
+                    KeyCode::Char('e') => {self.inputtingMode = true; self.move_cursor_to_end();}
+                    KeyCode::Right => {self.char_index += 1; self.clamp_cursor();}
+                    KeyCode::Left => {self.char_index = self.char_index.saturating_sub(1); self.clamp_cursor();}
+                    _ => {}
             }
-            _ => {}
-        }
+        } else {
+            match key_event.code {
+                KeyCode::Esc => {self.inputtingMode = false;},
+                KeyCode::Char(c) => {
+                    let input = match self.addtaskfield {
+                        AddTaskField::Title => {&mut self.title_input},
+                        AddTaskField::Tags => {&mut self.tags_input},
+                        AddTaskField::Due => {&mut self.due_input},
+                    };
 
+                    let byte_index = char_to_byte_index(input, self.char_index);
+                    input.insert(byte_index, c);
+
+                    self.char_index += 1;
+                }
+                _ => {}
+            }
+        }
         Ok(())
     }
 
     fn render_add_task_popup(&mut self, frame: &mut Frame, area: Rect) {
-        let add_task_block = Block::bordered().title("Add Task").fg(Color::LightYellow);
+        let add_task_block = Block::bordered().title("Add Task").fg(Color::White);
         let centered_area = area.centered(Constraint::Percentage(60), Constraint::Percentage(60));
 
         let layout = Layout::vertical([
@@ -561,12 +657,29 @@ impl App {
 
         let help_msg = Paragraph::new(help_text);
 
-        let title_block = Block::default().title("Title").borders(Borders::ALL);
-        let tags_block = Block::default().title("Tags").borders(Borders::ALL);
-        let due_block = Block::default().title("Due").borders(Borders::ALL);
+        let title_block = Block::default().title("Title").borders(Borders::ALL).style(
+            match self.addtaskfield {
+                AddTaskField::Title => Style::default().fg(Color::Yellow),
+                _ => Style::default(),
+            }
+        );
+        let tags_block = Block::default().title("Tags").borders(Borders::ALL).style(
+            match self.addtaskfield {
+                AddTaskField::Tags => Style::default().fg(Color::LightYellow),
+                _ => Style::default(),
+            }
+        );
+        let due_block = Block::default().title("Due").borders(Borders::ALL).style(
+            match self.addtaskfield {
+                AddTaskField::Due => Style::default().fg(Color::LightYellow),
+                _ => Style::default(),
+            }
+        );
+
+        let text = Text::from(self.title_input.as_str());
 
 
-        let title = Paragraph::new("Hello").block(title_block);
+        let title = Paragraph::new(text).block(title_block);
 
 
         frame.render_widget(Clear, centered_area);
@@ -578,7 +691,7 @@ impl App {
         frame.render_widget(due_block, task_due_area);
         frame.render_widget(tags_block, task_tags_area);
 
-
+        self.render_cursor(frame, (task_title_area, task_tags_area, task_due_area));
     }
 
     fn render_tasks_block(&mut self, frame: &mut Frame, area: Rect) {
@@ -699,8 +812,8 @@ impl App {
         self.render_tasks_block(frame, top_chunks[0]);
         self.render_details(frame, top_chunks[1]);
         self.render_footer(frame, vertical[1]);
-        match self.state {
-            State::AddingTask => {
+        match self.focus {
+            Focus::AddTaskPopup => {
                 self.render_add_task_popup(frame, area);
             }
             _ => {}
