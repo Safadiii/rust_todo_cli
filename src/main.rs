@@ -100,6 +100,13 @@ struct TaskList {
 }
 
 impl TaskList {
+    fn new() -> Self {
+        let tasks: Vec<Task> = vec![];
+        Self {
+            tasks: tasks,
+            next_id: 0,
+        }
+    }
     fn add(&mut self, title: &str, tags: Vec<String>, due: Option<DateTime<Local>>) {
         self.next_id();
         let id = self.next_id;
@@ -450,8 +457,6 @@ fn main() -> Result<()> {
     let mut tasks = TaskList::load(TASK_PATH);
     let due = parse_due("2h");
 
-    tasks.add("Helping People", vec!["Eating food".to_string()], due);
-
 
     // tasks.list();
     // loop {
@@ -466,6 +471,7 @@ fn main() -> Result<()> {
 enum Focus {
     None,
     AddTaskPopup,
+    DetailsPopup,
 }
 
 enum AddTaskField {
@@ -476,10 +482,26 @@ enum AddTaskField {
 
 enum MainFocus {
     Task,
-    Detail,
+    Categories,
     None
 }
-
+pub struct Category {
+    title: String,
+    taskslist: TaskList,
+    parent: Option<Box<Category>>,
+}
+impl Category {
+    fn new(title: String, parent: Option<Box<Category>>) -> Self {
+        Self {
+            title,
+            taskslist: TaskList::new(),
+            parent
+        }
+    }
+    fn add_task(&mut self, task: Task) {
+        self.taskslist.tasks.push(task);
+    }
+}
 pub struct App {
     exit: bool,
     taskslist: TaskList,
@@ -492,11 +514,20 @@ pub struct App {
     char_index: usize,
     inputtingMode: bool,
     mainfocus: MainFocus,
+    categories: Vec<Category>,
+    categoryliststate: ListState,
 }
 impl App {
     fn new(tasks_list: TaskList) -> Self {
         let mut list_state = ListState::default();
+        let mut categoryliststate = ListState::default();
         list_state.select(Some(0));
+        categoryliststate.select(Some(0));
+        let categories: Vec<Category> = vec![{
+            Category::new(
+                String::from("Fitness"), None)
+        }];
+
         Self {
             exit: false,
             taskslist: tasks_list,
@@ -508,13 +539,18 @@ impl App {
             due_input: String::new(),
             char_index: 0,
             inputtingMode: false,
-            mainfocus: MainFocus::Task,
+            mainfocus: MainFocus::Categories,
+            categories,
+            categoryliststate
         }
     }
     pub fn exit(&mut self) {
         self.exit = true;
     }
     fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
+        let mut category: Category = Category::new(String::from("Gym"), None);
+        category.add_task(Task::create(1, "Gym", vec![], None));
+        self.categories.push(category);
         while !self.exit {
             terminal.draw(|frame| self.draw(frame))?;
             match crossterm::event::read()? {
@@ -561,9 +597,8 @@ impl App {
 
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
         match self.focus {  
-            Focus::None => {self.handle_main(key_event)?},
             Focus::AddTaskPopup => {self.handle_addtaskpopup(key_event)?},
-            _ => {}
+            _ => {self.handle_main(key_event)?},
         }
         Ok(())
     }
@@ -575,22 +610,48 @@ impl App {
             KeyCode::Char('q') => self.exit = true,
 
             KeyCode::Down | KeyCode::Char('j') => {
-                let i = match self.list_state.selected() {
-                    Some(i) => i + 1,
-                    None => 0,
-                };
+                match self.mainfocus {
+                    MainFocus::Task => {                    
+                        let i = match self.list_state.selected() {
+                        Some(i) => i + 1,
+                        None => 0,
+                    };
 
-                if i < self.taskslist.tasks.len() {
-                    self.list_state.select(Some(i));
-                }
+                    if i < self.taskslist.tasks.len()  {
+                        self.list_state.select(Some(i));
+                    }}
+                    MainFocus::Categories => {
+                        let i = match self.categoryliststate.selected() {
+                            Some(i) => i + 1,
+                            None => 0,
+                        };
+                    
+                    if i < self.categories.len() {
+                        self.categoryliststate.select(Some(i));
+                    }
+                    }
+                    _ => {}
+            }
             }
 
             KeyCode::Up | KeyCode::Char('k') => {
-                let i = match self.list_state.selected() {
-                    Some(i) => i.saturating_sub(1),
-                    None => 0,
-                };
-                self.list_state.select(Some(i));
+                match self.mainfocus {
+                    MainFocus::Task => {
+                        let i = match self.list_state.selected() {
+                            Some(i) => i.saturating_sub(1),
+                            None => 0,
+                        };
+                        self.list_state.select(Some(i))
+                    },
+                    MainFocus::Categories => {
+                        let i = match self.categoryliststate.selected() {
+                            Some(i) => i.saturating_sub(1),
+                            None => 0,
+                        };
+                        self.categoryliststate.select(Some(i));
+                    }
+                    _ => {}
+                }
             }
 
             KeyCode::Char('a') => {
@@ -608,8 +669,23 @@ impl App {
             KeyCode::Tab => {
                 match self.mainfocus {
                     MainFocus::None => self.mainfocus = MainFocus::Task,
-                    MainFocus::Task => self.mainfocus = MainFocus::Detail,
-                    MainFocus::Detail => self.mainfocus = MainFocus::Task,
+                    MainFocus::Task => self.mainfocus = MainFocus::Categories,
+                    MainFocus::Categories => self.mainfocus = MainFocus::Task,
+                }
+            }
+
+            KeyCode::Enter => {
+                match self.mainfocus {
+                    MainFocus::Task => {self.focus = Focus::DetailsPopup;}
+                    MainFocus::Categories => {self.mainfocus = MainFocus::Task;}
+                    _ => {}
+                }
+            }
+
+            KeyCode::Esc => {
+                match self.focus {
+                    Focus::DetailsPopup => {self.focus =Focus::None}
+                    _ => {self.focus = Focus::None} 
                 }
             }
             _ => {}
@@ -665,7 +741,12 @@ impl App {
                                 .split_whitespace()
                                 .map(|x| x.to_string())
                                 .collect();
-                            self.taskslist.add(self.title_input.as_str(), tags, taskdue);
+                            let _curr_category = match self.categoryliststate.selected().and_then(|i| self.categories.get_mut(i)) {
+                                Some(category) => {
+                                   category.taskslist.add(self.title_input.as_str(), tags, taskdue);
+                                }
+                                _ => {}
+                        };
                         }
                         self.title_input = String::new();
                         self.tags_input = String::new();
@@ -721,7 +802,7 @@ impl App {
 
     fn render_add_task_popup(&mut self, frame: &mut Frame, area: Rect) {
         self.clamp_cursor();
-        let add_task_block = Block::bordered().title("Add Task").fg(Color::White);
+        let add_task_block: Block<'_> = Block::bordered().title("Add Task").fg(Color::White);
 
         let centered_area = area.centered(Constraint::Percentage(50), Constraint::Max(15));
 
@@ -783,7 +864,17 @@ impl App {
     }
 
     fn render_tasks_block(&mut self, frame: &mut Frame, area: Rect) {
-        let items: Vec<ListItem> = self.taskslist.tasks
+        let tasks = if let Some(i) = self.categoryliststate.selected() {
+            if let Some(category) = self.categories.get(i) {
+                &category.taskslist.tasks
+            } else {
+                &self.taskslist.tasks
+            }
+        } else {
+            &self.taskslist.tasks
+        };
+
+        let items: Vec<ListItem> = tasks
                     .iter()
                     .map(|task| {
                         let (status, style) = match task.status {
@@ -804,61 +895,90 @@ impl App {
                     .block(
                         Block::default()
                         .borders(Borders::ALL)
-                        .border_type(BorderType::Rounded)
+                        .border_type(BorderType::Thick)
                         .border_style(Style::default().fg(color))
                         .title("Tasks").style(Style::default().bg(Color::Indexed(240)))
-                    ).highlight_style(Style::default().add_modifier(Modifier::BOLD).bg(Color::Indexed(73))).highlight_symbol(">> ");
+                    ).highlight_style(Style::default().add_modifier(Modifier::BOLD).bg(Color::Indexed(73)));
         frame.render_stateful_widget(list, area, &mut self.list_state);
     }
 
-    fn render_details(&self, frame: &mut Frame, area: Rect) {
-        let selected = self.list_state.selected();
+    fn render_details(&mut self, frame: &mut Frame, area: Rect) {
+        let _curr_category = match self.categoryliststate.selected().and_then(|i| self.categories.get_mut(i)) {
+            Some(category) => {
+                let popup_area = area.centered(
+                    Constraint::Percentage(60),
+                    Constraint::Percentage(60),
+                );
+                let selected = self.list_state.selected();
+                let content = if let Some(i) = selected {
+                if let Some(task) = category.taskslist.tasks.get(i) {
+                    let tags = if task.tags.is_empty() {
+                        "None".to_string()
+                    } else {
+                        task.tags
+                            .iter()
+                            .map(|t| format!("- {}", t))
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    };
 
-        let content = if let Some(i) = selected {
-            if let Some(task) = self.taskslist.tasks.get(i) {
-                let tags = if task.tags.is_empty() {
-                    "None".to_string()
+                    let now = Local::now();
+
+                    let due_text = if let Some(due) = task.due {
+                        match (due - now).to_std() {
+                            std::result::Result::Ok(dur) => format!("Due: {}", format_duration(dur)),
+                            Err(_) => format!("Overdue"),
+                        }
+                    } else {
+                        "No due date".to_string()
+                    };
+                    format!(
+                        "Title: {}\n\nStatus: {:?}\n\nTags:\n{} \n\n{}",
+                        task.title, task.status, tags, due_text
+                    )
                 } else {
-                    task.tags
-                        .iter()
-                        .map(|t| format!("- {}", t))
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                };
-
-                let now = Local::now();
-
-                let due_text = if let Some(due) = task.due {
-                    match (due - now).to_std() {
-                        std::result::Result::Ok(dur) => format!("Due: {}", format_duration(dur)),
-                        Err(_) => format!("Overdue"),
-                    }
-                } else {
-                    "No due date".to_string()
-                };
-                format!(
-                    "Title: {}\n\nStatus: {:?}\n\nTags:\n{} \n\n{}",
-                    task.title, task.status, tags, due_text
-                )
+                    "No task selected".to_string()
+                }
             } else {
                 "No task selected".to_string()
+            };
+            let block = Block::default()
+                            .borders(Borders::ALL)
+                            .border_type(BorderType::Thick)
+                            .border_style(Style::default().fg(Color::Indexed(73)))
+                            .title("Details").style(Style::default().bg(Color::Indexed(240)));
+            frame.render_widget(Clear, popup_area);
+            frame.render_widget(Paragraph::new(content).block(block), popup_area);
             }
-        } else {
-            "No task selected".to_string()
+            _ => {}
         };
 
-        let color = match self.mainfocus {
-            MainFocus::Detail => Color::Indexed(73),
+
+    }
+
+    fn render_categories(&mut self, frame: &mut Frame, area: Rect) {
+        let items: Vec<ListItem> = self.categories
+                    .iter()
+                    .map(|category| {
+
+                        let content = format!("{}", category.title);
+
+                        ListItem::new(content)
+                    })
+                    .collect();
+        let color: Color = match self.mainfocus {
+            MainFocus::Categories => Color::Indexed((73)),
             _ => Color::Indexed(250),
         };
-
-        let block = Block::default()
-                        .borders(Borders::ALL)
-                        .border_type(BorderType::Rounded)
-                        .border_style(Style::default().fg(color))
-                        .title("Details").style(Style::default().bg(Color::Indexed(240)));
-
-        frame.render_widget(Paragraph::new(content).block(block), area);
+        let list = List::new(items)
+            .block(
+                Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Thick)
+                .border_style(Style::default().fg(color))
+                .title("Categories").style(Style::default().bg(Color::Indexed(240)))
+            ).highlight_style(Style::default().add_modifier(Modifier::BOLD).bg(Color::Indexed(73))).highlight_symbol(">> ");
+        frame.render_stateful_widget(list, area, &mut self.categoryliststate);
     }
 
     fn render_footer(&self, frame: &mut Frame, area: Rect) {
@@ -892,7 +1012,7 @@ impl App {
                     ]
                 }
             }
-            Focus::None => {
+            _ => {
                 vec![
                     Line::from(vec![
                         Span::styled("q", Style::default().fg(Color::Red).add_modifier(Modifier::UNDERLINED)),
@@ -934,7 +1054,7 @@ impl App {
                             .direction(Direction::Vertical)
                             .constraints([
                                 Constraint::Min(0),
-                                Constraint::Length(3),]
+                                Constraint::Length(2),]
                             ).split(area);
 
         let top_chunks = Layout::default()
@@ -944,12 +1064,15 @@ impl App {
                         Constraint::Percentage(70),
                     ]).split(vertical[0]);
         
-        self.render_tasks_block(frame, top_chunks[0]);
-        self.render_details(frame, top_chunks[1]);
-        self.render_footer(frame, vertical[1]);
+        self.render_tasks_block(frame, top_chunks[1]);
+        self.render_categories(frame, top_chunks[0]);
+        // self.render_footer(frame, vertical[1]);
         match self.focus {
             Focus::AddTaskPopup => {
                 self.render_add_task_popup(frame, area);
+            },
+            Focus::DetailsPopup => {
+                self.render_details(frame, area);
             }
             _ => {}
         }

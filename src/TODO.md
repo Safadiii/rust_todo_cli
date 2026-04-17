@@ -11,8 +11,11 @@ exit -> exit the program
 
 ## WIP
 
-Add due times to the TUI = DONE
 Sort by Due times 
-Adding tasks = DONE
 Editing tasks
-UI enhancements
+UI enhancements 
+Add Spaces and subSpaces
+Tasks can be clicked to view details in nice modal/popup
+Update load to handle categories
+Add tasks to categories *
+Handle Showing details when clicked on a task => popup
