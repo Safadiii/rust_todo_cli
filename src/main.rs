@@ -546,6 +546,8 @@ pub struct App {
     mainfocus: MainFocus,
     categories: Vec<Category>,
     categoryliststate: ListState,
+    cmd: String,
+    cmd_index: usize,
 }
 impl App {
     fn new(categories: Vec<Category>) -> Self {
@@ -567,7 +569,9 @@ impl App {
             inputtingMode: false,
             mainfocus: MainFocus::Categories,
             categories,
-            categoryliststate
+            categoryliststate,
+            cmd: String::new(),
+            cmd_index: 0,
         }
     }
     pub fn exit(&mut self) {
@@ -589,12 +593,19 @@ impl App {
 
     //Cursor logic
     fn clamp_cursor(&mut self) {
-        let len = match self.addtaskfield {
-            AddTaskField::Title => self.title_input.chars().count(),
-            AddTaskField::Tags => self.tags_input.chars().count(),
-            AddTaskField::Due => self.due_input.chars().count(),
-        };
-        self.char_index = self.char_index.clamp(0, len);
+        match self.focus {
+            Focus::AddTaskPopup => {
+                let len = match self.addtaskfield {
+                    AddTaskField::Title => self.title_input.chars().count(),
+                    AddTaskField::Tags => self.tags_input.chars().count(),
+                    AddTaskField::Due => self.due_input.chars().count(),
+                };
+                self.char_index = self.char_index.clamp(0, len);
+            }
+            _ => {
+            }
+        }
+
     }
 
     fn render_cursor(&self, frame: &mut Frame, areas: (Rect, Rect, Rect)) {
@@ -612,11 +623,17 @@ impl App {
     }
     
     fn move_cursor_to_end(&mut self) {
-        self.char_index = match self.addtaskfield {
-            AddTaskField::Title => {self.title_input.chars().count()}
-            AddTaskField::Tags => {self.tags_input.chars().count()}
-            AddTaskField::Due => {self.due_input.chars().count()}
-        };
+        match self.focus {
+            Focus::AddTaskPopup => {
+                self.char_index = match self.addtaskfield {
+                    AddTaskField::Title => {self.title_input.chars().count()}
+                    AddTaskField::Tags => {self.tags_input.chars().count()}
+                    AddTaskField::Due => {self.due_input.chars().count()}
+                };
+            }
+            _ => {}
+        }
+
     }
 
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
@@ -702,7 +719,7 @@ impl App {
             KeyCode::Tab => {
                 match self.mainfocus {
                     MainFocus::None => {
-                        self.mainfocus = MainFocus::Task;
+                        self.mainfocus = MainFocus::Categories;
                     }
                     MainFocus::Task => {
                         self.mainfocus = MainFocus::Categories;
@@ -712,6 +729,17 @@ impl App {
                         self.mainfocus = MainFocus::Task;
                         self.list_state.select(Some(0));
                     },
+                }
+            }
+
+            KeyCode::Char('C') => {
+                match self.mainfocus {
+                    MainFocus::Categories | MainFocus::Task => {
+                        self.cmd = String::from("Category Name: ");
+                        self.mainfocus = MainFocus::None;
+                        self.clamp_cursor();
+                    }
+                    _ => {}
                 }
             }
 
@@ -727,6 +755,14 @@ impl App {
                 match self.focus {
                     Focus::DetailsPopup => {self.focus =Focus::None}
                     _ => {self.focus = Focus::None} 
+                }
+                match self.mainfocus {
+                    MainFocus::Categories => self.mainfocus = MainFocus::None,
+                    MainFocus::None => {
+                        self.mainfocus = MainFocus::Categories;
+                        self.cmd = String::new();
+                    }
+                    _ => {}
                 }
             }
             _ => {}
@@ -1088,6 +1124,22 @@ impl App {
             );
         frame.render_widget(footer, area);
     }
+
+    fn render_command_center(&mut self, frame: &mut Frame, area: Rect) {
+        let color = match self.mainfocus {
+            MainFocus::None => {
+                Color::Indexed(73)
+            }
+            _ => Color::Indexed(250)
+        };
+
+        let cmd_input = Text::from(self.cmd.as_str());
+        let block = Block::default().borders(Borders::ALL).border_style(Style::default().fg(color));
+        let inner = block.inner(area);
+        let cmd = Paragraph::new(cmd_input).block(block);
+        frame.render_widget(cmd, area);
+        frame.set_cursor_position((inner.x + self.cmd.chars().count() as u16, inner.y));
+    }
     
     fn draw(&mut self, frame: &mut Frame) {
         let area = frame.area();
@@ -1096,7 +1148,7 @@ impl App {
                             .direction(Direction::Vertical)
                             .constraints([
                                 Constraint::Min(0),
-                                Constraint::Length(2),]
+                                Constraint::Length(3),]
                             ).split(area);
 
         let top_chunks = Layout::default()
@@ -1109,7 +1161,8 @@ impl App {
         self.render_tasks_block(frame, top_chunks[1]);
         self.render_categories(frame, top_chunks[0]);
         // self.render_footer(frame, vertical[1]);
-        match self.focus {
+        self.render_command_center(frame, vertical[1]);
+       match self.focus {
             Focus::AddTaskPopup => {
                 self.render_add_task_popup(frame, area);
             },
