@@ -16,6 +16,7 @@ Editing tasks
 UI enhancements 
 Add Spaces and subSpaces
 Tasks can be clicked to view details in nice modal/popup
-Update load to handle categories
-Add tasks to categories *
+Update load to handle categories * 
+Add tasks to categories 
 Handle Showing details when clicked on a task => popup
+When changing focus to tasks => not being selected

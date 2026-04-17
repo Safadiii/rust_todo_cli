@@ -445,6 +445,7 @@ fn due_parse(s: String) -> bool {
     humantime::parse_duration(s.as_str()).is_ok()
 }
 
+
 //Ratatui 
 /*
 Needs an app struct with an exit flag
@@ -454,16 +455,14 @@ Display Tasks for now and exit with a letter
 // MAIN INPUT LOOP
 fn main() -> Result<()> {
     //input loop
-    let mut tasks = TaskList::load(TASK_PATH);
-    let due = parse_due("2h");
-
 
     // tasks.list();
     // loop {
     //     take_input(&mut tasks);
     // }
+    let categories = load(TASK_PATH);
     color_eyre::install()?;
-    ratatui::run(|terminal  | App::new(tasks).run(terminal))
+    ratatui::run(|terminal  | App::new(categories).run(terminal))
 }
 
 #[derive(Debug, Clone, Copy)] // Add Clone and Copy here
@@ -485,6 +484,7 @@ enum MainFocus {
     Categories,
     None
 }
+#[derive(Deserialize, Serialize)]
 pub struct Category {
     title: String,
     taskslist: TaskList,
@@ -502,6 +502,36 @@ impl Category {
         self.taskslist.tasks.push(task);
     }
 }
+
+fn save(path: &str, categories: &Vec<Category>) {
+    let json = serde_json::to_string_pretty(categories)
+        .expect("Could not serialize categories.");
+
+    fs::write(path, json)
+        .expect("Could not write to file.");
+}
+
+
+fn load(path: &str) -> Vec<Category> {
+        if !Path::new(path).exists() {
+            let categories: Vec<Category> = vec![];
+
+            return categories;
+        } 
+        let data = fs::read_to_string(path).unwrap_or_else(|_| {
+            println!("Failed to create file, creating new one.");
+            return String::new();
+        });
+
+        if data.trim().is_empty() {
+            return vec![];
+        }
+
+        serde_json::from_str(&data).unwrap_or_else(|_| {
+            println!("Corrupted file, couldn't read.");
+            vec![]
+        })
+    }
 pub struct App {
     exit: bool,
     taskslist: TaskList,
@@ -518,15 +548,11 @@ pub struct App {
     categoryliststate: ListState,
 }
 impl App {
-    fn new(tasks_list: TaskList) -> Self {
+    fn new(categories: Vec<Category>) -> Self {
         let mut list_state = ListState::default();
         let mut categoryliststate = ListState::default();
-        list_state.select(Some(0));
+        let tasks_list: TaskList = TaskList::new();
         categoryliststate.select(Some(0));
-        let categories: Vec<Category> = vec![{
-            Category::new(
-                String::from("Fitness"), None)
-        }];
 
         Self {
             exit: false,
@@ -547,10 +573,8 @@ impl App {
     pub fn exit(&mut self) {
         self.exit = true;
     }
+
     fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
-        let mut category: Category = Category::new(String::from("Gym"), None);
-        category.add_task(Task::create(1, "Gym", vec![], None));
-        self.categories.push(category);
         while !self.exit {
             terminal.draw(|frame| self.draw(frame))?;
             match crossterm::event::read()? {
@@ -611,15 +635,23 @@ impl App {
 
             KeyCode::Down | KeyCode::Char('j') => {
                 match self.mainfocus {
-                    MainFocus::Task => {                    
-                        let i = match self.list_state.selected() {
-                        Some(i) => i + 1,
-                        None => 0,
-                    };
+                    MainFocus::Task => {
+                        let tasks_len = self
+                            .categoryliststate
+                            .selected()
+                            .and_then(|i| self.categories.get(i))
+                            .map(|cat| cat.taskslist.tasks.len())
+                            .unwrap_or(self.taskslist.tasks.len());
 
-                    if i < self.taskslist.tasks.len()  {
-                        self.list_state.select(Some(i));
-                    }}
+                        let i = match self.list_state.selected() {
+                            Some(i) => i + 1,
+                            None => 0,
+                        };
+
+                        if i < tasks_len {
+                            self.list_state.select(Some(i));
+                        }
+                    },
                     MainFocus::Categories => {
                         let i = match self.categoryliststate.selected() {
                             Some(i) => i + 1,
@@ -637,11 +669,12 @@ impl App {
             KeyCode::Up | KeyCode::Char('k') => {
                 match self.mainfocus {
                     MainFocus::Task => {
-                        let i = match self.list_state.selected() {
+                        let i = match self.categoryliststate.selected() {
                             Some(i) => i.saturating_sub(1),
                             None => 0,
                         };
-                        self.list_state.select(Some(i))
+
+                        self.list_state.select(Some(i));
                     },
                     MainFocus::Categories => {
                         let i = match self.categoryliststate.selected() {
@@ -668,9 +701,17 @@ impl App {
             }
             KeyCode::Tab => {
                 match self.mainfocus {
-                    MainFocus::None => self.mainfocus = MainFocus::Task,
-                    MainFocus::Task => self.mainfocus = MainFocus::Categories,
-                    MainFocus::Categories => self.mainfocus = MainFocus::Task,
+                    MainFocus::None => {
+                        self.mainfocus = MainFocus::Task;
+                    }
+                    MainFocus::Task => {
+                        self.mainfocus = MainFocus::Categories;
+                        self.list_state.select(None);
+                    }
+                    MainFocus::Categories => {
+                        self.mainfocus = MainFocus::Task;
+                        self.list_state.select(Some(0));
+                    },
                 }
             }
 
@@ -744,6 +785,7 @@ impl App {
                             let _curr_category = match self.categoryliststate.selected().and_then(|i| self.categories.get_mut(i)) {
                                 Some(category) => {
                                    category.taskslist.add(self.title_input.as_str(), tags, taskdue);
+                                   save(TASK_PATH, &self.categories);
                                 }
                                 _ => {}
                         };

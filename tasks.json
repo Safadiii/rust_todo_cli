@@ -1,26 +1,25 @@
-{
-  "tasks": [
-    {
-      "id": 1,
-      "title": "Shopping",
-      "tags": ["Clothes", "Groceries"],
-      "status": "InProgress",
-      "due": null
+[
+  {
+    "title": "Gym",
+    "taskslist": {
+      "tasks": [
+        {
+          "id": 1,
+          "title": "Gym",
+          "tags": [],
+          "status": "InProgress",
+          "due": null
+        },
+        {
+          "id": 2,
+          "title": "Football",
+          "tags": [],
+          "status": "InProgress",
+          "due": null
+        }
+      ],
+      "next_id": 3
     },
-    {
-      "id": 2,
-      "title": "Gym",
-      "tags": [],
-      "status": "Done",
-      "due": null
-    },
-    {
-      "id": 3,
-      "title": "Soccer",
-      "tags": [],
-      "status": "InProgress",
-      "due": null
-    }
-  ],
-  "next_id": 3
-}
+    "parent": null
+  }
+]
