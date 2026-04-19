@@ -11,12 +11,10 @@ exit -> exit the program
 
 ## WIP
 
-Sort by Due times 
-Editing tasks
-UI enhancements 
-Add Spaces and subSpaces
-Tasks can be clicked to view details in nice modal/popup
-Update load to handle categories * 
-Add tasks to categories 
-Handle Showing details when clicked on a task => popup
-When changing focus to tasks => not being selected
+EDIT TASK
+HELP SCREEN
+POLISH CODE
+SUBCATEGORY
+DESCRIPTION
+TAGS + DESCRIPTION SEARCH
+RECURRING TASKS

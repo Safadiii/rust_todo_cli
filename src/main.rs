@@ -1,10 +1,7 @@
-use std::char;
 use std::fs;
-use std::io;
 use std::fmt;
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::ops::Add;
 use std::path::Path;
 use std::time::Duration;
 use color_eyre::Result;
@@ -13,10 +10,9 @@ use color_eyre::eyre::Ok;
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use crossterm::event::KeyEventKind;
-use crossterm::event::KeyModifiers;
-use crossterm::event::ModifierKeyCode;
 use humantime::format_duration;
 use ratatui::DefaultTerminal;
+use ratatui::symbols::merge;
 use ratatui::text::Text;
 use ratatui::layout::Alignment;
 use ratatui::layout::Constraint;
@@ -27,6 +23,8 @@ use ratatui::style::Modifier;
 use ratatui::style::Stylize;
 use ratatui::text::Line;
 use ratatui::text::Span;
+use ratatui::symbols::merge::MergeStrategy;
+use ratatui::layout::Spacing;
 use ratatui::widgets::Block;
 use ratatui::widgets::BorderType;
 use ratatui::widgets::Borders;
@@ -36,9 +34,7 @@ use ratatui::widgets::ListItem;
 use ratatui::widgets::ListState;
 use ratatui::widgets::Padding;
 use ratatui::widgets::Paragraph;
-use ratatui::widgets::TitlePosition;
 use ratatui::widgets::Wrap;
-use serde::de;
 use serde::{Serialize, Deserialize};
 use humantime::parse_duration;
 use ratatui::{Frame, style::Style, layout::Rect};
@@ -445,6 +441,19 @@ fn due_parse(s: String) -> bool {
     humantime::parse_duration(s.as_str()).is_ok()
 }
 
+fn format_short_duration(duration: std::time::Duration) -> String {
+    let total_secs = duration.as_secs();
+
+    let hours = total_secs / 3600;
+    let minutes = (total_secs % 3600) / 60;
+
+    match (hours, minutes) {
+        (h, m) if h > 0 && m > 0 => format!("{}h {}m", h, m),
+        (h, _) if h > 0 => format!("{}h", h),
+        (_, m) => format!("{}m", m),
+    }
+}
+
 
 //Ratatui 
 /*
@@ -467,10 +476,15 @@ fn main() -> Result<()> {
 
 #[derive(Debug, Clone, Copy)] // Add Clone and Copy here
 
+enum CmdMode {
+    AddingCategory,
+    None
+}
 enum Focus {
     None,
     AddTaskPopup,
     DetailsPopup,
+    HelpPopup,
 }
 
 enum AddTaskField {
@@ -548,6 +562,7 @@ pub struct App {
     categoryliststate: ListState,
     cmd: String,
     cmd_index: usize,
+    commandMode: CmdMode,
 }
 impl App {
     fn new(categories: Vec<Category>) -> Self {
@@ -572,6 +587,7 @@ impl App {
             categoryliststate,
             cmd: String::new(),
             cmd_index: 0,
+            commandMode: CmdMode::None,
         }
     }
     pub fn exit(&mut self) {
@@ -588,7 +604,19 @@ impl App {
         }
         Ok(())
     }
+    
 
+    //Get Current Task From Selected Category + List State
+    fn current_task_mut(&mut self) -> Option<&mut Task> {
+        self.categoryliststate
+            .selected()
+            .and_then(|cat_i| self.categories.get_mut(cat_i))
+            .and_then(|cat| {
+                self.list_state
+                    .selected()
+                    .and_then(|task_i| cat.taskslist.tasks.get_mut(task_i))
+            })
+    }
 
 
     //Cursor logic
@@ -602,8 +630,10 @@ impl App {
                 };
                 self.char_index = self.char_index.clamp(0, len);
             }
-            _ => {
+            Focus::None => {
+                self.cmd_index = self.cmd_index.clamp(0, self.cmd.chars().count())
             }
+            _ => {}
         }
 
     }
@@ -638,8 +668,73 @@ impl App {
 
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
         match self.focus {  
-            Focus::AddTaskPopup => {self.handle_addtaskpopup(key_event)?},
-            _ => {self.handle_main(key_event)?},
+            Focus::AddTaskPopup => {self.handle_popup(key_event)?},
+            Focus::None => {
+                match self.mainfocus {
+                    MainFocus::None => {self.handle_cmd_events(key_event)?}
+                    _ => {self.handle_main(key_event)?}
+                }
+            },
+            Focus::DetailsPopup => {self.handle_detailspopup(key_event)?}
+            Focus::HelpPopup => {self.handle_helpkeys(key_event)?}
+            _ => {}
+        }
+        Ok(())
+    }
+    fn handle_helpkeys(&mut self, key_event: KeyEvent) -> Result<()> {
+        match key_event.code {
+            KeyCode::Esc => {
+                self.focus = Focus::None;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    fn handle_detailspopup(&mut self, key_event: KeyEvent) -> Result<()> {
+        match key_event.code {
+            KeyCode::Esc => {
+                self.focus = Focus::None;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    fn handle_cmd_events(&mut self, key_event: KeyEvent) -> Result<()> {
+        if key_event.kind != KeyEventKind::Press {
+            return Ok(())
+        }
+        match key_event.code {
+            KeyCode::Esc => {
+                self.cmd = String::new();
+                self.cmd_index = 0;
+                self.mainfocus = MainFocus::Categories;
+                self.commandMode = CmdMode::None;
+            }
+            KeyCode::Char(c) => {
+                self.cmd.push(c);
+                self.cmd_index += 1;
+            }
+            KeyCode::Backspace => {
+                if self.cmd_index > 0 {
+                    self.cmd_index = self.cmd_index.saturating_sub(1);
+                    let bytes = char_to_byte_index(self.cmd.as_str(), self.cmd_index);
+                    self.cmd.remove(bytes);
+                }
+            }
+            KeyCode::Enter => {
+                //Later change into a function to generalize
+                match self.commandMode {
+                    CmdMode::AddingCategory => {
+                        self.categories.push(Category::new(std::mem::take(&mut self.cmd), None));
+                        self.mainfocus = MainFocus::Categories;
+                        self.commandMode = CmdMode::None;
+                    }
+                    _ => {}
+                }
+            }
+            KeyCode::Right => {self.cmd_index += 1; self.clamp_cursor();}
+            KeyCode::Left => {self.cmd_index = self.cmd_index.saturating_sub(1); self.clamp_cursor();}
+            _ => {}
         }
         Ok(())
     }
@@ -686,7 +781,7 @@ impl App {
             KeyCode::Up | KeyCode::Char('k') => {
                 match self.mainfocus {
                     MainFocus::Task => {
-                        let i = match self.categoryliststate.selected() {
+                        let i = match self.list_state.selected() {
                             Some(i) => i.saturating_sub(1),
                             None => 0,
                         };
@@ -702,6 +797,9 @@ impl App {
                     }
                     _ => {}
                 }
+            }
+            KeyCode::Char('h') => {
+                self.focus = Focus::HelpPopup;
             }
 
             KeyCode::Char('a') => {
@@ -735,7 +833,7 @@ impl App {
             KeyCode::Char('C') => {
                 match self.mainfocus {
                     MainFocus::Categories | MainFocus::Task => {
-                        self.cmd = String::from("Category Name: ");
+                        self.commandMode = CmdMode::AddingCategory;
                         self.mainfocus = MainFocus::None;
                         self.clamp_cursor();
                     }
@@ -746,7 +844,7 @@ impl App {
             KeyCode::Enter => {
                 match self.mainfocus {
                     MainFocus::Task => {self.focus = Focus::DetailsPopup;}
-                    MainFocus::Categories => {self.mainfocus = MainFocus::Task;}
+                    MainFocus::Categories => {self.mainfocus = MainFocus::Task; self.list_state.select(Some(0));}
                     _ => {}
                 }
             }
@@ -762,6 +860,29 @@ impl App {
                         self.mainfocus = MainFocus::Categories;
                         self.cmd = String::new();
                     }
+                    MainFocus::Task => {
+                        self.mainfocus = MainFocus::Categories;
+                    }
+                    _ => {}
+                }
+            }
+            KeyCode::Char('x') => {
+                match self.mainfocus {
+                    MainFocus::Task => {
+                        if let Some(task) = self.current_task_mut() {
+                            task.mark_completed();
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            KeyCode::Char('p') => {
+                match self.mainfocus {
+                    MainFocus::Task => {
+                        if let Some(task) = self.current_task_mut() {
+                            task.status = Status::InProgress;
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -769,7 +890,7 @@ impl App {
         }
         Ok(())
     }
-    fn handle_addtaskpopup(&mut self, key_event: KeyEvent) -> Result<()> {
+    fn handle_popup(&mut self, key_event: KeyEvent) -> Result<()> {
         if !self.inputtingMode {
                 match key_event.code {
                     KeyCode::Tab => {
@@ -880,8 +1001,21 @@ impl App {
 
     fn render_add_task_popup(&mut self, frame: &mut Frame, area: Rect) {
         self.clamp_cursor();
-        let add_task_block: Block<'_> = Block::bordered().title("Add Task").fg(Color::White);
+        let color_main = Color::Indexed(73);
+        let mode_span = if self.inputtingMode {
+            Span::styled(" INSERT ", Style::default().bg(Color::White).fg(Color::Indexed(73)))
+        } else {
+            Span::styled(" NORMAL ", Style::default().bg(Color::Indexed(73)).fg(Color::White))
+        };
 
+        let title = Line::from(vec![
+            Span::raw("Add Task "),
+            mode_span,
+        ]);
+
+        let add_task_block = Block::bordered()
+            .title(title)
+            .fg(color_main);
         let centered_area = area.centered(Constraint::Percentage(50), Constraint::Max(15));
 
         let popup_height = 13;
@@ -903,22 +1037,23 @@ impl App {
 
         let title_block = Block::default().title("Title").borders(Borders::ALL).style(
             match self.addtaskfield {
-                AddTaskField::Title => Style::default().fg(Color::LightYellow),
-                _ => Style::default(),
+                AddTaskField::Title => Style::default().fg(color_main),
+                _ => Style::default().fg(Color::Indexed(250)),
             }
         );
         let tags_block = Block::default().title("Tags").borders(Borders::ALL).style(
             match self.addtaskfield {
-                AddTaskField::Tags => Style::default().fg(Color::LightYellow),
-                _ => Style::default(),
+                AddTaskField::Tags => Style::default().fg(color_main),
+                _ => Style::default().fg(Color::Indexed(250)),
             }
         );
         let due_block = Block::default().title("Due").borders(Borders::ALL).style(
             match self.addtaskfield {
-                AddTaskField::Due => Style::default().fg(Color::LightYellow),
-                _ => Style::default(),
+                AddTaskField::Due => Style::default().fg(color_main),
+                _ => Style::default().fg(Color::Indexed(250)),
             }
         );
+
 
         let text = Text::from(self.title_input.as_str());
         let tags_text = Text::from(self.tags_input.as_str());
@@ -952,19 +1087,50 @@ impl App {
             &self.taskslist.tasks
         };
 
+
         let items: Vec<ListItem> = tasks
-                    .iter()
-                    .map(|task| {
-                        let (status, style) = match task.status {
-                            Status::Done => ("[DONE]", Style::default().fg(Color::White)),
-                            Status::InProgress => ("[IN PROGRESS]", Style::default().fg(Color::White)),
-                        };
+            .iter()
+            .map(|task| {
+                let (symbol, color) = match task.status {
+                    Status::Done => ("◆", Color::Indexed(73)),
+                    Status::InProgress => ("◇", Color::Indexed(73)),
+                };
 
-                        let content = format!("{}. {} {}", task.id, task.title, status);
+                let left = format!("{} {}", symbol, task.title);
 
-                        ListItem::new(content).style(style)
-                    })
-                    .collect();
+                let due_text = if let Some(due) = task.due {
+                    let now = Local::now();
+                    let text = if due > now {
+                        let d = (due - now).to_std().unwrap_or_default();
+                        format!("in {}", format_short_duration(d))
+                    } else {
+                        let d = (now - due).to_std().unwrap_or_default();
+                        format!("{} ago", format_short_duration(d))
+                    };
+                    text
+                } else {
+                    String::new()
+                };
+
+                // padding calculation
+                let total_width = area.width as usize;
+                let left_len = left.len();
+                let right_len = due_text.len();
+
+                let spacing = total_width.saturating_sub(left_len + right_len + 1);
+                let spaces = " ".repeat(spacing);
+
+                let line = Line::from(vec![
+                    Span::styled(format!("{}", symbol), Style::default().fg(color)),
+                    Span::raw(" "),
+                    Span::raw(task.title.clone()),
+                    Span::raw(spaces),
+                    Span::styled(due_text, Style::default().fg(Color::DarkGray)),
+                ]);
+
+                ListItem::new(line)
+            })
+            .collect();
         let color = match self.mainfocus {
             MainFocus::Task => Color::Indexed(73),
             _ => Color::Indexed(250),
@@ -975,6 +1141,7 @@ impl App {
                         .borders(Borders::ALL)
                         .border_type(BorderType::Thick)
                         .border_style(Style::default().fg(color))
+                        .merge_borders(MergeStrategy::Exact)
                         .title("Tasks").style(Style::default().bg(Color::Indexed(240)))
                     ).highlight_style(Style::default().add_modifier(Modifier::BOLD).bg(Color::Indexed(73)));
         frame.render_stateful_widget(list, area, &mut self.list_state);
@@ -1054,6 +1221,7 @@ impl App {
                 .borders(Borders::ALL)
                 .border_type(BorderType::Thick)
                 .border_style(Style::default().fg(color))
+                .merge_borders(MergeStrategy::Exact)
                 .title("Categories").style(Style::default().bg(Color::Indexed(240)))
             ).highlight_style(Style::default().add_modifier(Modifier::BOLD).bg(Color::Indexed(73))).highlight_symbol(">> ");
         frame.render_stateful_widget(list, area, &mut self.categoryliststate);
@@ -1125,6 +1293,8 @@ impl App {
         frame.render_widget(footer, area);
     }
 
+
+
     fn render_command_center(&mut self, frame: &mut Frame, area: Rect) {
         let color = match self.mainfocus {
             MainFocus::None => {
@@ -1133,12 +1303,79 @@ impl App {
             _ => Color::Indexed(250)
         };
 
+        let title: String = match self.commandMode {
+            CmdMode::AddingCategory => String::from("Category Name"),
+            _ => String::new()
+        };
+
         let cmd_input = Text::from(self.cmd.as_str());
-        let block = Block::default().borders(Borders::ALL).border_style(Style::default().fg(color));
+        let block = Block::default().borders(Borders::ALL).border_style(Style::default().fg(color)).title(title);
         let inner = block.inner(area);
         let cmd = Paragraph::new(cmd_input).block(block);
         frame.render_widget(cmd, area);
-        frame.set_cursor_position((inner.x + self.cmd.chars().count() as u16, inner.y));
+        match self.mainfocus {
+            MainFocus::None => {frame.set_cursor_position((inner.x + self.cmd.chars().count() as u16, inner.y));
+}           _ => {}
+        }
+    }
+
+    fn render_help_screen(&mut self, frame: &mut Frame, area: Rect) {
+        let popup_area = area.centered(
+            Constraint::Percentage(80),
+            Constraint::Percentage(80),
+        );
+
+        let color = Color::Indexed(73);
+
+        let help_text = vec![
+            Line::from(Span::styled("Global", Style::default().add_modifier(Modifier::BOLD)).fg(color)),
+            Line::from(" q        → Quit"),
+            Line::from(" Tab      → Switch focus (Categories / Tasks)"),
+            Line::from(" Esc      → Back / Exit popup"),
+            Line::from(""),
+
+            Line::from(Span::styled("Navigation", Style::default().add_modifier(Modifier::BOLD))),
+            Line::from(" j / ↓    → Move down"),
+            Line::from(" k / ↑    → Move up"),
+            Line::from(" Enter    → Select / Open"),
+            Line::from(""),
+
+            Line::from(Span::styled("Tasks", Style::default().add_modifier(Modifier::BOLD))),
+            Line::from(" a        → Open Add Task popup"),
+            Line::from(" x        → Mark task completed"),
+            Line::from(" p        → Mark task in progress"),
+            Line::from(""),
+
+            Line::from(Span::styled("Categories", Style::default().add_modifier(Modifier::BOLD))),
+            Line::from(" C        → Add category (command mode)"),
+            Line::from(""),
+
+            Line::from(Span::styled("Command Mode", Style::default().add_modifier(Modifier::BOLD))),
+            Line::from(" Type     → Enter command text"),
+            Line::from(" Enter    → Confirm"),
+            Line::from(" Esc      → Cancel"),
+            Line::from(""),
+
+            Line::from(Span::styled("Add Task Popup", Style::default().add_modifier(Modifier::BOLD))),
+            Line::from(" Tab/j/k  → Switch fields"),
+            Line::from(" e / i    → Enter input mode"),
+            Line::from(" Esc      → Exit input mode"),
+            Line::from(" c        → Clear field"),
+            Line::from(" Enter    → Next field / Submit"),
+            Line::from(" ← / →    → Move cursor"),
+        ];
+
+        let paragraph = Paragraph::new(help_text)
+            .block(
+                Block::default()
+                    .title(" Help ")
+                    .borders(Borders::ALL)
+                    .fg(color)
+            )
+            .alignment(Alignment::Left)
+            .wrap(Wrap { trim: true });
+
+        frame.render_widget(paragraph, popup_area);
     }
     
     fn draw(&mut self, frame: &mut Frame) {
@@ -1153,10 +1390,17 @@ impl App {
 
         let top_chunks = Layout::default()
                     .direction(Direction::Horizontal)
+                    .spacing(Spacing::Overlap(1))
                     .constraints([
                         Constraint::Percentage(30),
-                        Constraint::Percentage(70),
+                        Constraint::Percentage(71),
                     ]).split(vertical[0]);
+
+        match self.focus {
+            Focus::HelpPopup => {self.render_help_screen(frame, area);
+            return}
+            _ => {}
+        }
         
         self.render_tasks_block(frame, top_chunks[1]);
         self.render_categories(frame, top_chunks[0]);
@@ -1164,6 +1408,10 @@ impl App {
         self.render_command_center(frame, vertical[1]);
        match self.focus {
             Focus::AddTaskPopup => {
+                frame.render_widget(
+                    Block::default().style(Style::default().bg(Color::Black)),
+                    area,
+                );
                 self.render_add_task_popup(frame, area);
             },
             Focus::DetailsPopup => {
