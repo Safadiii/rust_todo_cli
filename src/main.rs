@@ -35,6 +35,7 @@ use ratatui::widgets::ListState;
 use ratatui::widgets::Padding;
 use ratatui::widgets::Paragraph;
 use ratatui::widgets::Wrap;
+use serde::de;
 use serde::{Serialize, Deserialize};
 use humantime::parse_duration;
 use ratatui::{Frame, style::Style, layout::Rect};
@@ -77,16 +78,20 @@ struct Task {
     tags: Vec<String>,
     status: Status,
     due: Option<DateTime<Local>>,
+    description: String,
 }
 
 impl Task {
     fn create(id: u32, title: &str, tags: Vec<String>, due: Option<DateTime<Local>>) -> Self {
         Self {
-            id, title: title.to_string(), tags, status: Status::InProgress, due
+            id, title: title.to_string(), tags, status: Status::InProgress, due, description: String::new()
         }
     }
     fn mark_completed(&mut self) {
         self.status = Status::Done;
+    }
+    fn add_description(&mut self, desc: String) {
+        self.description = desc;
     }
 }
 #[derive(Serialize, Deserialize)]
@@ -130,6 +135,14 @@ impl TaskList {
                     println!("{id}- {title} {progress}");
                 }
             }
+        }
+    }
+
+    fn update_task(&mut self, id: u32, title: String, tags: Vec<String>, due: Option<DateTime<Local>>) {
+        if let Some(task) = self.tasks.iter_mut().find(|t| t.id == id) {
+            task.title = title;
+            task.tags = tags;
+            task.due = due;
         }
     }
     fn list_extended(&self) {
@@ -498,6 +511,10 @@ enum MainFocus {
     Categories,
     None
 }
+enum PopupMode {
+    AddMode,
+    EditMode,
+}
 #[derive(Deserialize, Serialize)]
 pub struct Category {
     title: String,
@@ -563,6 +580,7 @@ pub struct App {
     cmd: String,
     cmd_index: usize,
     commandMode: CmdMode,
+    editing_task_id: Option<u32>,
 }
 impl App {
     fn new(categories: Vec<Category>) -> Self {
@@ -588,9 +606,11 @@ impl App {
             cmd: String::new(),
             cmd_index: 0,
             commandMode: CmdMode::None,
+            editing_task_id: None,
         }
     }
     pub fn exit(&mut self) {
+
         self.exit = true;
     }
 
@@ -602,6 +622,7 @@ impl App {
                 _ => {}
             }
         }
+        save(TASK_PATH, &self.categories);
         Ok(())
     }
     
@@ -615,6 +636,17 @@ impl App {
                 self.list_state
                     .selected()
                     .and_then(|task_i| cat.taskslist.tasks.get_mut(task_i))
+            })
+    }
+
+    fn current_task(&mut self) -> Option<&Task> {
+        self.categoryliststate
+            .selected()
+            .and_then(|cat_i| self.categories.get_mut(cat_i))
+            .and_then(|cat| {
+                self.list_state
+                    .selected()
+                    .and_then(|task_i| cat.taskslist.tasks.get(task_i))
             })
     }
 
@@ -692,7 +724,7 @@ impl App {
     }
     fn handle_detailspopup(&mut self, key_event: KeyEvent) -> Result<()> {
         match key_event.code {
-            KeyCode::Esc => {
+            KeyCode::Esc | KeyCode::Char('q') => {
                 self.focus = Focus::None;
             }
             _ => {}
@@ -798,7 +830,18 @@ impl App {
                     _ => {}
                 }
             }
-            KeyCode::Char('h') => {
+            KeyCode::Char('D') => {
+                let task_id = self.current_task_mut().map(|t| t.id);
+
+                if let Some(id) = task_id {
+                    if let Some(i) = self.categoryliststate.selected() {
+                        if let Some(category) = self.categories.get_mut(i) {
+                            category.taskslist.delete_task(id);
+                        }
+                    }
+                }
+            }
+            KeyCode::Char('H') => {
                 self.focus = Focus::HelpPopup;
             }
 
@@ -814,6 +857,37 @@ impl App {
                     _ => {}
                 }
             }
+
+            KeyCode::Char('e') => {
+                match self.mainfocus {
+                    MainFocus::Task => {
+                        if let Some(task) = self.current_task() {
+                            let task_id = task.id;
+                            let title = task.title.clone();
+                            let tags = task.tags.clone();
+                            let due = task.due;
+
+                            self.editing_task_id = Some(task_id);
+                            self.title_input = title;
+                            self.tags_input = tags.join(" ");
+                            self.due_input = due
+                                .map(|d| {
+                                    let now = Local::now();
+                                    let duration = if d > now {
+                                        (d - now).to_std().unwrap_or_default()
+                                    } else {
+                                        (now - d).to_std().unwrap_or_default()
+                                    };
+                                    format_short_duration(duration)
+                                })
+                                .unwrap_or_default();
+                            self.focus = Focus::AddTaskPopup;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
             KeyCode::Tab => {
                 match self.mainfocus {
                     MainFocus::None => {
@@ -836,6 +910,17 @@ impl App {
                         self.commandMode = CmdMode::AddingCategory;
                         self.mainfocus = MainFocus::None;
                         self.clamp_cursor();
+                    }
+                    _ => {}
+                }
+            }
+            KeyCode::Char('D') => {
+                match self.mainfocus {
+                    MainFocus::Categories => {
+                        let index = self.categoryliststate.selected().unwrap();
+
+                        self.categories.remove(index);
+                        self.categoryliststate.select(Some(0));
                     }
                     _ => {}
                 }
@@ -929,29 +1014,47 @@ impl App {
                     KeyCode::Right => {self.char_index += 1; self.clamp_cursor();}
                     KeyCode::Left => {self.char_index = self.char_index.saturating_sub(1); self.clamp_cursor();}
                     KeyCode::Enter => {
-                        let due = &mut self.due_input;
-                        if !self.title_input.is_empty() && !self.tags_input.is_empty() && due_parse(due.to_string()) {
-                            let now = Local::now();
-                            let duration = parse_duration(due).unwrap();
-                            let taskdue = Some(now + chrono::Duration::from_std(duration).unwrap());
+                        if self.title_input.is_empty() {
+                            return Ok(());
+                        }
 
-                            let tags: Vec<String> = self.tags_input
+                        let now = Local::now();
+                        let taskdue = if !self.due_input.is_empty() && due_parse(self.due_input.clone()) {
+                            let duration = parse_duration(&self.due_input).unwrap();
+                            Some(now + chrono::Duration::from_std(duration).unwrap())
+                        } else {
+                            None
+                        };
+                        let tags: Vec<String> = if self.tags_input.trim().is_empty() {
+                            vec![]
+                        } else {
+                            self.tags_input
                                 .split_whitespace()
                                 .map(|x| x.to_string())
-                                .collect();
-                            let _curr_category = match self.categoryliststate.selected().and_then(|i| self.categories.get_mut(i)) {
-                                Some(category) => {
-                                   category.taskslist.add(self.title_input.as_str(), tags, taskdue);
-                                   save(TASK_PATH, &self.categories);
-                                }
-                                _ => {}
+                                .collect()
                         };
+                        if let Some(category) = self
+                            .categoryliststate
+                            .selected()
+                            .and_then(|i| self.categories.get_mut(i))
+                        {
+                            if let Some(edit_id) = self.editing_task_id {
+                                category.taskslist.update_task(edit_id, self.title_input.clone(), tags, taskdue);
+                            } else {
+                                category.taskslist.add(
+                                    self.title_input.as_str(),
+                                    tags,
+                                    taskdue,
+                                );
+                            }
+                            save(TASK_PATH, &self.categories);
                         }
                         self.title_input = String::new();
                         self.tags_input = String::new();
                         self.due_input = String::new();
                         self.focus = Focus::None;
                         self.addtaskfield = AddTaskField::Title;
+                        self.editing_task_id = None;
                     }
                     _ => {}
             }
@@ -1002,10 +1105,10 @@ impl App {
     fn render_add_task_popup(&mut self, frame: &mut Frame, area: Rect) {
         self.clamp_cursor();
         let color_main = Color::Indexed(73);
-        let mode_span = if self.inputtingMode {
-            Span::styled(" INSERT ", Style::default().bg(Color::White).fg(Color::Indexed(73)))
+        let mode_span = if self.editing_task_id.is_some() {
+            Span::styled(" EDIT ", Style::default().bg(Color::Yellow).fg(Color::Black))
         } else {
-            Span::styled(" NORMAL ", Style::default().bg(Color::Indexed(73)).fg(Color::White))
+            Span::styled(" ADD ", Style::default().bg(Color::Green).fg(Color::Black))
         };
 
         let title = Line::from(vec![
@@ -1223,7 +1326,7 @@ impl App {
                 .border_style(Style::default().fg(color))
                 .merge_borders(MergeStrategy::Exact)
                 .title("Categories").style(Style::default().bg(Color::Indexed(240)))
-            ).highlight_style(Style::default().add_modifier(Modifier::BOLD).bg(Color::Indexed(73))).highlight_symbol(">> ");
+            ).highlight_style(Style::default().add_modifier(Modifier::BOLD).bg(Color::Indexed(73))).highlight_symbol("> ");
         frame.render_stateful_widget(list, area, &mut self.categoryliststate);
     }
 
@@ -1314,8 +1417,8 @@ impl App {
         let cmd = Paragraph::new(cmd_input).block(block);
         frame.render_widget(cmd, area);
         match self.mainfocus {
-            MainFocus::None => {frame.set_cursor_position((inner.x + self.cmd.chars().count() as u16, inner.y));
-}           _ => {}
+            MainFocus::None => {frame.set_cursor_position((inner.x + self.cmd.chars().count() as u16, inner.y));} 
+            _ => {}
         }
     }
 
