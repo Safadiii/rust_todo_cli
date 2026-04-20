@@ -1,0 +1,31 @@
+use ratatui::{Frame, layout::Rect, style::{Color, Modifier, Style}, symbols::merge::MergeStrategy, widgets::{Block, BorderType, Borders, List, ListItem}};
+
+use crate::{App, app::MainFocus};
+
+impl App {
+    pub fn render_categories(&mut self, frame: &mut Frame, area: Rect) {
+        let items: Vec<ListItem> = self.categories
+                    .iter()
+                    .map(|category| {
+
+                        let content = format!("{}", category.title);
+
+                        ListItem::new(content)
+                    })
+                    .collect();
+        let color: Color = match self.mainfocus {
+            MainFocus::Categories => Color::Indexed(73),
+            _ => Color::Indexed(250),
+        };
+        let list = List::new(items)
+            .block(
+                Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Thick)
+                .border_style(Style::default().fg(color))
+                .merge_borders(MergeStrategy::Exact)
+                .title("Categories").style(Style::default().bg(Color::Indexed(240)))
+            ).highlight_style(Style::default().add_modifier(Modifier::BOLD).bg(Color::Indexed(73))).highlight_symbol("> ");
+        frame.render_stateful_widget(list, area, &mut self.categoryliststate);
+    }
+}
