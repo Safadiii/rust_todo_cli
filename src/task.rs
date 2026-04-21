@@ -63,9 +63,8 @@ impl Task {
         }
 
     }
-    fn _add_description(&mut self, desc: String) {
+    pub fn add_description(&mut self, desc: String) {
         self.description = desc;
-        todo!();
     }
 }
 

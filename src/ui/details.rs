@@ -1,61 +1,218 @@
 use chrono::Local;
 use humantime::format_duration;
-use ratatui::{Frame, layout::{Constraint, Rect}, style::{Color, Style}, widgets::{Block, BorderType, Borders, Clear, Paragraph}};
+use ratatui::{
+    Frame,
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, BorderType, Borders, Clear, Padding, Paragraph, Wrap},
+};
 
-use crate::app::App;
+use crate::{app::App, format_short_duration};
+
+//claude generated TUI design for task popup
 
 impl App {
     pub fn render_details(&mut self, frame: &mut Frame, area: Rect) {
-        let _curr_category = match self.categoryliststate.selected().and_then(|i| self.categories.get_mut(i)) {
+        let _curr_category = match self
+            .categoryliststate
+            .selected()
+            .and_then(|i| self.categories.get_mut(i))
+        {
             Some(category) => {
                 let popup_area = area.centered(
-                    Constraint::Percentage(60),
-                    Constraint::Percentage(60),
+                    Constraint::Percentage(55),
+                    Constraint::Percentage(65),
                 );
+
                 let selected = self.list_state.selected();
-                let content = if let Some(i) = selected {
-                if let Some(task) = category.taskslist.tasks.get(i) {
-                    let tags = if task.tags.is_empty() {
-                        "None".to_string()
-                    } else {
-                        task.tags
-                            .iter()
-                            .map(|t| format!("- {}", t))
-                            .collect::<Vec<_>>()
-                            .join("\n")
-                    };
 
-                    let now = Local::now();
-
-                    let due_text = if let Some(due) = task.due {
-                        match (due - now).to_std() {
-                            std::result::Result::Ok(dur) => format!("Due: {}", format_duration(dur)),
-                            Err(_) => format!("Overdue"),
-                        }
-                    } else {
-                        "No due date".to_string()
-                    };
-                    format!(
-                        "Title: {}\n\nStatus: {:?}\n\nTags:\n{} \n\n{}",
-                        task.title, task.status, tags, due_text
-                    )
-                } else {
-                    "No task selected".to_string()
-                }
-            } else {
-                "No task selected".to_string()
-            };
-            let block = Block::default()
+                if let Some(i) = selected {
+                    if let Some(task) = category.taskslist.tasks.get(i) {
+                        // ── outer shell ─────────────────────────────────────────
+                        let outer_block = Block::default()
                             .borders(Borders::ALL)
-                            .border_type(BorderType::Thick)
+                            .border_type(BorderType::Rounded)
                             .border_style(Style::default().fg(Color::Indexed(73)))
-                            .title("Details").style(Style::default().bg(Color::Indexed(240)));
-            frame.render_widget(Clear, popup_area);
-            frame.render_widget(Paragraph::new(content).block(block), popup_area);
+                            .title(Line::from(vec![
+                                Span::raw(" "),
+                                Span::styled(
+                                    "Task Details",
+                                    Style::default()
+                                        .fg(Color::Indexed(73))
+                                        .add_modifier(Modifier::BOLD),
+                                ),
+                                Span::raw(" "),
+                            ]))
+                            .title_alignment(Alignment::Center)
+                            .style(Style::default().bg(Color::DarkGray));
+
+                        frame.render_widget(Clear, popup_area);
+                        frame.render_widget(&outer_block, popup_area);
+
+                        // ── inner layout ─────────────────────────────────────────
+                        let inner = outer_block.inner(popup_area);
+                        let sections = Layout::default()
+                            .direction(Direction::Vertical)
+                            .margin(1)
+                            .constraints([
+                                Constraint::Length(1), // [0] title banner
+                                Constraint::Length(1), // [1] gap
+                                Constraint::Length(1), // [2] status row
+                                Constraint::Length(1), // [3] due row
+                                Constraint::Length(1), // [4] gap
+                                Constraint::Length(3), // [5] description
+                                Constraint::Length(1), // [6] gap
+                                Constraint::Min(0),    // [7] tags
+                            ])
+                            .split(inner);
+
+                        // ── title banner ─────────────────────────────────────────
+                        let title_block = Block::default()
+                            .borders(Borders::NONE)
+                            .style(Style::default().bg(Color::DarkGray));
+
+                        let title_para = Paragraph::new(Line::from(vec![Span::styled(
+                            &task.title,
+                            Style::default()
+                                .fg(Color::Indexed(73))
+                                .add_modifier(Modifier::BOLD),
+                        )]))
+                        .block(title_block)
+                        .alignment(Alignment::Left)
+                        .wrap(Wrap { trim: true });
+
+                        frame.render_widget(title_para, sections[0]);
+
+                        // ── status row ───────────────────────────────────────────
+                        let (status_color, status_icon) = match task.status {
+                            // replace with your actual Status variants, e.g.:
+                            // Status::Done    => (Color::Indexed(114), "●"),
+                            // Status::Pending => (Color::Indexed(179), "○"),
+                            _ => (Color::Indexed(114), "●"),
+                        };
+
+                        let status_line = Line::from(vec![
+                            Span::styled(
+                                "Status ",
+                                Style::default()
+                                    .fg(Color::Indexed(73))
+                                    .add_modifier(Modifier::BOLD),
+                            ),
+                            Span::styled(
+                                format!("{} {:?}", status_icon, task.status),
+                                Style::default()
+                                    .fg(status_color)
+                                    .add_modifier(Modifier::BOLD),
+                            ),
+                        ]);
+
+                        frame.render_widget(Paragraph::new(status_line), sections[2]);
+
+                        // ── due date row ─────────────────────────────────────────
+                        let now = Local::now();
+                        let (due_text, due_color) = if let Some(due) = task.due {
+                            match (due - now).to_std() {
+                                Ok(dur) => (
+                                    format!("Due in {}", format_short_duration(dur)),
+                                    Color::Indexed(226),
+                                ),
+                                Err(_) => (
+                                    "Due     Overdue!".to_string(),
+                                    Color::Indexed(203),
+                                ),
+                            }
+                        } else {
+                            ("No due date".to_string(), Color::Indexed(194))
+                        };
+
+                        frame.render_widget(
+                            Paragraph::new(Line::from(vec![Span::styled(
+                                due_text,
+                                Style::default().fg(due_color),
+                            )])),
+                            sections[3],
+                        );
+
+                        // ── description ──────────────────────────────────────────
+                        let desc_text = task.description.as_str();
+
+                        let desc_lines = vec![
+                            Line::from(vec![Span::styled(
+                                "Description",
+                                Style::default()
+                                    .fg(Color::Indexed(73))
+                                    .add_modifier(Modifier::BOLD),
+                            )]),
+                            Line::from(vec![Span::styled(
+                                format!("  {}", desc_text),
+                                Style::default().fg(Color::Indexed(194)),
+                            )]),
+                        ];
+
+                        frame.render_widget(
+                            Paragraph::new(desc_lines).wrap(Wrap { trim: true }),
+                            sections[5],
+                        );
+
+                        // ── tags section ─────────────────────────────────────────
+                        let tag_header = Line::from(vec![Span::styled(
+                            "Tags",
+                            Style::default()
+                                .fg(Color::Indexed(73))
+                                .add_modifier(Modifier::BOLD),
+                        )]);
+
+                        let tag_lines: Vec<Line> = if task.tags.is_empty() {
+                            vec![
+                                Line::from(tag_header),
+                                Line::from(Span::styled(
+                                    "no tags found",
+                                    Style::default().fg(Color::Indexed(194)),
+                                )),
+                            ]
+                        } else {
+                            let mut lines = vec![Line::from(tag_header)];
+                            for tag in &task.tags {
+                                lines.push(Line::from(vec![
+                                    Span::styled(
+                                        "■ ",
+                                        Style::default().fg(Color::Indexed(194)),
+                                    ),
+                                    Span::styled(
+                                        tag.as_str(),
+                                        Style::default().fg(Color::Indexed(194)),
+                                    ),
+                                ]));
+                            }
+                            lines
+                        };
+
+                        frame.render_widget(
+                            Paragraph::new(tag_lines).wrap(Wrap { trim: true }),
+                            sections[7],
+                        );
+
+                        // ── bottom hint bar ──────────────────────────────────────
+                        let hint_area = Rect {
+                            x: popup_area.x + 1,
+                            y: popup_area.y + popup_area.height - 1,
+                            width: popup_area.width.saturating_sub(2),
+                            height: 1,
+                        };
+
+                        frame.render_widget(
+                            Paragraph::new(Line::from(vec![Span::styled(
+                                " [Esc] close",
+                                Style::default().fg(Color::Indexed(73)),
+                            )]))
+                            .alignment(Alignment::Right),
+                            hint_area,
+                        );
+                    }
+                }
             }
             _ => {}
         };
-
-
     }
 }

@@ -1,5 +1,3 @@
-use std::ops::Add;
-
 use ratatui::layout::Rect;
 use ratatui::{DefaultTerminal, Frame};
 use ratatui::widgets::ListState;
@@ -11,6 +9,7 @@ use crate::{TASK_PATH,};
 
 pub enum CmdMode {
     AddingCategory,
+    AddingDescription,
     None
 }
 pub enum Focus {

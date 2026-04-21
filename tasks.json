@@ -4,33 +4,29 @@
     "taskslist": {
       "tasks": [
         {
-          "id": 4,
-          "title": "Testing",
-          "tags": [],
-          "status": "InProgress",
-          "due": "2026-04-19T21:49:28.908485+03:00",
-          "description": "",
-          "recurrence": null
-        },
-        {
           "id": 5,
           "title": "Hello",
           "tags": [],
-          "status": "InProgress",
+          "status": "Done",
           "due": null,
-          "description": "",
+          "description": "Today I am testing this feature",
           "recurrence": null
         },
         {
           "id": 6,
-          "title": "Hello",
+          "title": "Test#1",
           "tags": [
-            "hello"
+            "Testing"
           ],
           "status": "InProgress",
-          "due": "2026-04-20T22:17:17.610661+03:00",
+          "due": "2026-04-23T04:29:39.286640+03:00",
           "description": "",
-          "recurrence": "Daily"
+          "recurrence": {
+            "Custom": {
+              "secs": 14400,
+              "nanos": 0
+            }
+          }
         }
       ],
       "next_id": 6

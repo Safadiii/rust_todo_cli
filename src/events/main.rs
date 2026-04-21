@@ -35,6 +35,16 @@ impl App {
                 category.taskslist.clear_done();
             }
 
+            KeyCode::Char('d') => {
+                match self.mainfocus {
+                    MainFocus::Task => {
+                        self.commandmode = CmdMode::AddingDescription;
+                        self.mainfocus = MainFocus::None;
+                    }
+                    _ => {}
+                }
+            }
+
             KeyCode::Down | KeyCode::Char('j') => {
                 match self.mainfocus {
                     MainFocus::Task => {
@@ -155,7 +165,6 @@ impl App {
                     _ => {}
                 }
             }
-
             KeyCode::Tab => {
                 match self.mainfocus {
                     MainFocus::None => {

@@ -8,6 +8,7 @@ use crate::{app::{AddTaskField, App, Focus}, char_to_byte_index, due_parse, stor
 
 fn parse_recurrence(input: &str) -> Option<Recurrence> {
     match input.trim().to_lowercase().as_str() {
+        "" => None,
         "daily"   => Some(Recurrence::Daily),
         "weekly"  => Some(Recurrence::Weekly),
         "monthly" => Some(Recurrence::Monthly),
@@ -30,10 +31,10 @@ impl App {
                     }
                     KeyCode::Char('j') => {
                         match self.addtaskfield {
-                            AddTaskField::Title => {self.addtaskfield = AddTaskField::Recurring; self.move_cursor_to_end();},
-                            AddTaskField::Due => {self.addtaskfield = AddTaskField::Title; self.move_cursor_to_end();},
+                            AddTaskField::Title => {self.addtaskfield = AddTaskField::Tags; self.move_cursor_to_end();},
+                            AddTaskField::Due => {self.addtaskfield = AddTaskField::Recurring; self.move_cursor_to_end();},
                             AddTaskField::Tags => {self.addtaskfield = AddTaskField::Due; self.move_cursor_to_end();},
-                            AddTaskField::Recurring => {self.addtaskfield = AddTaskField::Tags; self.move_cursor_to_end();},
+                            AddTaskField::Recurring => {self.addtaskfield = AddTaskField::Title; self.move_cursor_to_end();},
                         }
                         self.clamp_cursor();
                     }

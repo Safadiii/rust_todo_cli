@@ -33,6 +33,13 @@ impl App {
                         self.categories.push(Category::new(std::mem::take(&mut self.cmd), None));
                         self.mainfocus = MainFocus::Categories;
                         self.commandmode = CmdMode::None;
+                    },
+                    CmdMode::AddingDescription => {
+                        let input = self.cmd.clone();
+                        self.current_task_mut().unwrap().add_description(input);
+                        self.cmd.clear();
+                        self.commandmode = CmdMode::None;
+                        self.mainfocus = MainFocus::Categories;
                     }
                     _ => {}
                 }
