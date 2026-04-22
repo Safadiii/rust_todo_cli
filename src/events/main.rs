@@ -6,7 +6,7 @@ impl App {
     pub fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
         match self.focus {  
             Focus::AddTaskPopup => {self.handle_popup(key_event)?},
-            Focus::None => {
+            Focus::None | Focus::Search => {
                 match self.mainfocus {
                     MainFocus::None => {self.handle_cmd_events(key_event)?}
                     _ => {self.handle_main(key_event)?}
@@ -14,6 +14,7 @@ impl App {
             },
             Focus::DetailsPopup => {self.handle_detailspopup(key_event)?}
             Focus::HelpPopup => {self.handle_helpkeys(key_event)?}
+            _ => {}
         }
         Ok(())
     }
@@ -33,6 +34,11 @@ impl App {
             KeyCode::Char('d') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                 let category = self.categoryliststate.selected().and_then(|i| self.categories.get_mut(i)).unwrap();
                 category.taskslist.clear_done();
+            }
+
+            KeyCode::Char('S') => {
+                self.mainfocus = MainFocus::None;
+                self.commandmode = CmdMode::Search;
             }
 
             KeyCode::Char('d') => {
@@ -73,7 +79,12 @@ impl App {
                     if i < self.categories.len() {
                         self.categoryliststate.select(Some(i));
                     }
+
+
                     }
+                    MainFocus::SearchResults => {
+                        self.searchliststate.select_next();
+                    },
                     _ => {}
             }
             }
@@ -94,6 +105,9 @@ impl App {
                             None => 0,
                         };
                         self.categoryliststate.select(Some(i));
+                    }
+                    MainFocus::SearchResults => {
+                        self.searchliststate.select_previous();
                     }
                     _ => {}
                 }
@@ -178,6 +192,7 @@ impl App {
                         self.mainfocus = MainFocus::Task;
                         self.list_state.select(Some(0));
                     },
+                    _ => {}
                 }
             }
 
@@ -191,7 +206,7 @@ impl App {
                     _ => {}
                 }
             }
-            KeyCode::Char('S') => {
+            KeyCode::Char('s') => {
                 let category = self.categoryliststate.selected().and_then(|i| self.categories.get_mut(i)).unwrap();
                 category.taskslist.sort_by_deadline();
             }
@@ -207,6 +222,7 @@ impl App {
             KeyCode::Esc => {
                 match self.focus {
                     Focus::DetailsPopup => {self.focus =Focus::None}
+                    Focus::Search => {self.focus = Focus::None}
                     _ => {self.focus = Focus::None} 
                 }
                 match self.mainfocus {
@@ -217,6 +233,12 @@ impl App {
                     }
                     MainFocus::Task => {
                         self.mainfocus = MainFocus::Categories;
+                    }
+                    MainFocus::SearchResults => {
+                        self.focus = Focus::None;
+                        self.mainfocus = MainFocus::Categories;
+                        self.cmd.clear();
+                        self.commandmode = CmdMode::None;
                     }
                 }
             }

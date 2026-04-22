@@ -28,7 +28,11 @@ impl App {
         }
         
         self.render_tasks_block(frame, top_chunks[1]);
-        self.render_categories(frame, top_chunks[0]);
+        match self.focus {
+            Focus::Search => {self.render_results(frame, top_chunks[0]);}
+            _ => {self.render_categories(frame, top_chunks[0]);
+}
+        }
         // self.render_footer(frame, vertical[1]);
         self.render_command_center(frame, vertical[1]);
        match self.focus {

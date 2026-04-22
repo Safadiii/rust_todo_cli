@@ -14,6 +14,7 @@ impl App {
         let title: String = match self.commandmode {
             CmdMode::AddingCategory => String::from("Category Name"),
             CmdMode::AddingDescription => String::from("Description"),
+            CmdMode::Search => String::from("Search"),
             _ => String::new()
         };
 

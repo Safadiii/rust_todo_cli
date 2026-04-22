@@ -1,6 +1,7 @@
 use ratatui::layout::Rect;
 use ratatui::{DefaultTerminal, Frame};
 use ratatui::widgets::ListState;
+use crate::search::SearchResult;
 use crate::storage::save;
 use crate::task::{TaskList, Task};
 use crate::category::Category;
@@ -10,6 +11,7 @@ use crate::{TASK_PATH,};
 pub enum CmdMode {
     AddingCategory,
     AddingDescription,
+    Search,
     None
 }
 pub enum Focus {
@@ -17,6 +19,7 @@ pub enum Focus {
     AddTaskPopup,
     DetailsPopup,
     HelpPopup,
+    Search
 }
 
 pub enum AddTaskField {
@@ -29,7 +32,8 @@ pub enum AddTaskField {
 pub enum MainFocus {
     Task,
     Categories,
-    None
+    None,
+    SearchResults
 }
 
 pub struct App {
@@ -51,11 +55,13 @@ pub struct App {
     pub cmd_index: usize,
     pub commandmode: CmdMode,
     pub editing_task_id: Option<u32>,
+    pub searchliststate: ListState,
 }
 impl App {
     pub fn new(categories: Vec<Category>) -> Self {
         let list_state = ListState::default();
         let mut categoryliststate = ListState::default();
+        let mut searchliststate = ListState::default();
         let tasks_list: TaskList = TaskList::new();
         categoryliststate.select(Some(0));
 
@@ -78,6 +84,7 @@ impl App {
             cmd_index: 0,
             commandmode: CmdMode::None,
             editing_task_id: None,
+            searchliststate,
         }
     }
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
@@ -146,6 +153,7 @@ impl App {
 
         frame.set_cursor_position((x, y));
     }
+
     pub fn move_cursor_to_end(&mut self) {
         match self.focus {
             Focus::AddTaskPopup => {
@@ -158,7 +166,6 @@ impl App {
             }
             _ => {}
         }
-
     }
 }
 

@@ -8,6 +8,7 @@ mod category;
 mod app;
 mod ui;
 mod events;
+mod search;
 
 use storage::{load};
 

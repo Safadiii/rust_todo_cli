@@ -4,15 +4,6 @@
     "taskslist": {
       "tasks": [
         {
-          "id": 5,
-          "title": "Hello",
-          "tags": [],
-          "status": "Done",
-          "due": null,
-          "description": "Today I am testing this feature",
-          "recurrence": null
-        },
-        {
           "id": 6,
           "title": "Test#1",
           "tags": [
@@ -27,6 +18,15 @@
               "nanos": 0
             }
           }
+        },
+        {
+          "id": 5,
+          "title": "Hello",
+          "tags": [],
+          "status": "Done",
+          "due": null,
+          "description": "Today I am testing this feature",
+          "recurrence": null
         }
       ],
       "next_id": 6
@@ -36,8 +36,20 @@
   {
     "title": "Abed",
     "taskslist": {
-      "tasks": [],
-      "next_id": 0
+      "tasks": [
+        {
+          "id": 1,
+          "title": "Hello",
+          "tags": [
+            "abed"
+          ],
+          "status": "InProgress",
+          "due": null,
+          "description": "",
+          "recurrence": null
+        }
+      ],
+      "next_id": 1
     },
     "parent": null
   },
