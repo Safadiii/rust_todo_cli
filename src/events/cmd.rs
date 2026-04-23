@@ -1,7 +1,7 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
-use color_eyre::{Result, config};
+use color_eyre::{Result};
 
-use crate::{app::{App, CmdMode, Focus, MainFocus}, category::Category, char_to_byte_index, search::{SearchConfig, search_fuzzy}};
+use crate::{app::{App, CmdMode, Focus, MainFocus}, category::Category, char_to_byte_index,};
 
 impl App {
     pub fn handle_cmd_events(&mut self, key_event: KeyEvent) -> Result<()> {

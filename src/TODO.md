@@ -11,6 +11,17 @@ exit -> exit the program
 
 ## WIP
 
-SUBCATEGORY
-DESCRIPTION * 
-TAGS + DESCRIPTION SEARCH 
+Refactoring Code:
+
+- replace calculation of (i) in list state with next and previous (DONE)
+- modularize key events (DONE)
+- fix recurring task bug
+- search breaks when deleting empty input (DONE)
+
+
+Config:
+
+- Color Scheme Choosing
+- Modifying Style
+
+

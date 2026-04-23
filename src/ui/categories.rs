@@ -14,7 +14,7 @@ impl App {
                     })
                     .collect();
         let color: Color = match self.mainfocus {
-            MainFocus::Categories => Color::Indexed(73),
+            MainFocus::Categories => Color::Indexed(030),
             _ => Color::Indexed(250),
         };
         let list = List::new(items)
@@ -24,8 +24,8 @@ impl App {
                 .border_type(BorderType::Thick)
                 .border_style(Style::default().fg(color))
                 .merge_borders(MergeStrategy::Exact)
-                .title("Categories").style(Style::default().bg(Color::Indexed(240)))
-            ).highlight_style(Style::default().add_modifier(Modifier::BOLD).bg(Color::Indexed(73))).highlight_symbol("> ");
+                .title("Categories").style(Style::default().bg(Color::Indexed(234)))
+            ).highlight_style(Style::default().add_modifier(Modifier::BOLD).bg(Color::Indexed(030))).highlight_symbol("> ");
         frame.render_stateful_widget(list, area, &mut self.categoryliststate);
     }
 }

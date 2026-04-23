@@ -20,22 +20,14 @@ impl App {
     pub fn handle_popup(&mut self, key_event: KeyEvent) -> Result<()> {
         if !self.inputtingmode {
                 match key_event.code {
-                    KeyCode::Tab => {
+                    KeyCode::Tab | KeyCode::Char('j') => {
                         match self.addtaskfield {
-                            AddTaskField::Title => {self.addtaskfield = AddTaskField::Tags; self.move_cursor_to_end();},
-                            AddTaskField::Due => {self.addtaskfield = AddTaskField::Recurring; self.move_cursor_to_end();},
-                            AddTaskField::Tags => {self.addtaskfield = AddTaskField::Due; self.move_cursor_to_end();},
-                            AddTaskField::Recurring => {self.addtaskfield = AddTaskField::Title; self.move_cursor_to_end();},
+                            AddTaskField::Title => {self.addtaskfield = AddTaskField::Tags;},
+                            AddTaskField::Due => {self.addtaskfield = AddTaskField::Recurring;},
+                            AddTaskField::Tags => {self.addtaskfield = AddTaskField::Due;},
+                            AddTaskField::Recurring => {self.addtaskfield = AddTaskField::Title;},
                         }
-                        self.clamp_cursor();
-                    }
-                    KeyCode::Char('j') => {
-                        match self.addtaskfield {
-                            AddTaskField::Title => {self.addtaskfield = AddTaskField::Tags; self.move_cursor_to_end();},
-                            AddTaskField::Due => {self.addtaskfield = AddTaskField::Recurring; self.move_cursor_to_end();},
-                            AddTaskField::Tags => {self.addtaskfield = AddTaskField::Due; self.move_cursor_to_end();},
-                            AddTaskField::Recurring => {self.addtaskfield = AddTaskField::Title; self.move_cursor_to_end();},
-                        }
+                        self.move_cursor_to_end();
                         self.clamp_cursor();
                     }
                     KeyCode::Char('k') => {
@@ -104,31 +96,27 @@ impl App {
                         self.addtaskfield = AddTaskField::Title;
                         self.editing_task_id = None;
                     }
-                    _ => {}
+                    _ => {
+                        self.inputtingmode = true;
+                    }
             }
         } else {
+            let input: &mut String = match self.addtaskfield {
+                AddTaskField::Title => {&mut self.title_input},
+                AddTaskField::Tags => {&mut self.tags_input},
+                AddTaskField::Due => {&mut self.due_input},
+                AddTaskField::Recurring => {&mut self.recurrence_input},
+            };
+
             match key_event.code {
                 KeyCode::Esc => {self.inputtingmode = false;},
                 KeyCode::Char(c) => {
-                    let input = match self.addtaskfield {
-                        AddTaskField::Title => {&mut self.title_input},
-                        AddTaskField::Tags => {&mut self.tags_input},
-                        AddTaskField::Due => {&mut self.due_input},
-                        AddTaskField::Recurring => {&mut self.recurrence_input},
-                    };
-
                     let byte_index = char_to_byte_index(input, self.char_index);
                     input.insert(byte_index, c);
 
                     self.char_index += 1;
                 }
                 KeyCode::Backspace => {
-                    let input = match self.addtaskfield {
-                        AddTaskField::Title => {&mut self.title_input},
-                        AddTaskField::Tags => {&mut self.tags_input},
-                        AddTaskField::Due => {&mut self.due_input},
-                        AddTaskField::Recurring => {&mut self.recurrence_input},
-                    };
                     let mut c = self.char_index;
 
                     if c > 0 {
@@ -141,11 +129,13 @@ impl App {
                 }
                 KeyCode::Enter => {
                     match self.addtaskfield  {
-                        AddTaskField::Title => {self.addtaskfield = AddTaskField::Tags; self.clamp_cursor(); self.move_cursor_to_end();}
-                        AddTaskField::Tags => {self.addtaskfield = AddTaskField::Due; self.clamp_cursor(); self.move_cursor_to_end();}
-                        AddTaskField::Due => {self.addtaskfield = AddTaskField::Recurring; self.clamp_cursor(); self.move_cursor_to_end();}
-                        AddTaskField::Recurring => {self.addtaskfield = AddTaskField::Title; self.clamp_cursor(); self.move_cursor_to_end();}
+                        AddTaskField::Title => {self.addtaskfield = AddTaskField::Tags;}
+                        AddTaskField::Tags => {self.addtaskfield = AddTaskField::Due;}
+                        AddTaskField::Due => {self.addtaskfield = AddTaskField::Recurring;}
+                        AddTaskField::Recurring => {self.addtaskfield = AddTaskField::Title;}
                     } 
+                    self.clamp_cursor(); 
+                    self.move_cursor_to_end();
                 }
                 _ => {}
             }
