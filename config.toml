@@ -1,0 +1,10 @@
+[colors]
+background = 234
+active = { r = 198, g = 244, b = 208 }
+foreground = "white"
+inactive = 250
+
+[keys]
+down = "j"
+up = "k"
+quit = "q"

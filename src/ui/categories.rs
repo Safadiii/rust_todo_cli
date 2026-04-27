@@ -14,8 +14,8 @@ impl App {
                     })
                     .collect();
         let color: Color = match self.mainfocus {
-            MainFocus::Categories => Color::Indexed(030),
-            _ => Color::Indexed(250),
+            MainFocus::Categories => self.config.active,
+            _ => self.config.inactive,
         };
         let list = List::new(items)
             .block(
@@ -24,8 +24,8 @@ impl App {
                 .border_type(BorderType::Thick)
                 .border_style(Style::default().fg(color))
                 .merge_borders(MergeStrategy::Exact)
-                .title("Categories").style(Style::default().bg(Color::Indexed(234)))
-            ).highlight_style(Style::default().add_modifier(Modifier::BOLD).bg(Color::Indexed(030))).highlight_symbol("> ");
+                .title("Categories").style(Style::default().bg(self.config.background))
+            ).highlight_style(Style::default().add_modifier(Modifier::BOLD).fg(Color::Black).bg(color));
         frame.render_stateful_widget(list, area, &mut self.categoryliststate);
     }
 }

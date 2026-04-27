@@ -10,7 +10,7 @@ impl App {
             Constraint::Percentage(80),
         );
 
-        let color = Color::Indexed(73);
+        let color = self.config.active;
 
         let help_text = vec![
             Line::from(Span::styled("Global", Style::default().add_modifier(Modifier::BOLD)).fg(color)),

@@ -1,4 +1,4 @@
-use ratatui::{Frame, layout::Rect, style::{Color, Style}, text::Text, widgets::{Block, Borders, Paragraph}};
+use ratatui::{Frame, layout::Rect, style::{Color, Style, Stylize}, text::Text, widgets::{Block, BorderType, Borders, Paragraph}};
 
 use crate::{App, app::{CmdMode, MainFocus}};
 
@@ -6,20 +6,20 @@ impl App {
     pub fn render_command_center(&mut self, frame: &mut Frame, area: Rect) {
         let color = match self.mainfocus {
             MainFocus::None => {
-                Color::Indexed(73)
+                self.config.active
             }
-            _ => Color::Indexed(250)
+            _ => self.config.inactive
         };
 
         let title: String = match self.commandmode {
             CmdMode::AddingCategory => String::from("Category Name"),
             CmdMode::AddingDescription => String::from("Description"),
             CmdMode::Search => String::from("Search"),
-            _ => String::new()
+            _ => String::from("Command")
         };
 
         let cmd_input = Text::from(self.cmd.as_str());
-        let block = Block::default().borders(Borders::ALL).border_style(Style::default().fg(color)).title(title);
+        let block = Block::default().borders(Borders::ALL).border_type(BorderType::Thick).border_style(Style::default().fg(color)).title(title).bg(self.config.background);
         let inner = block.inner(area);
         let cmd = Paragraph::new(cmd_input).block(block);
         frame.render_widget(cmd, area);

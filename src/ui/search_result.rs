@@ -13,12 +13,14 @@ impl App {
     pub fn render_results(&mut self, frame: &mut Frame, area: Rect) {
         let config = SearchConfig::default();
         let results = search_fuzzy(&self.categories, &self.cmd, &config);
+        let active = self.config.active;
+        let background = self.config.background;
 
         let is_focused = matches!(self.mainfocus, MainFocus::SearchResults);
         let border_color = if is_focused {
-            Color::Indexed(73)
+            self.config.active
         } else {
-            Color::Indexed(240)
+            self.config.inactive
         };
 
         let items: Vec<ListItem> = results
@@ -39,14 +41,14 @@ impl App {
                     Span::styled(
                         result.task.title.clone(),
                         Style::default()
-                            .fg(Color::Indexed(73))
+                            .fg(active)
                             .add_modifier(Modifier::BOLD),
                     ),
                     Span::styled(
                         "  ⏎ open",
                         Style::default()
-                            .fg(Color::Indexed(240))
-                            .add_modifier(Modifier::DIM),
+                            .fg(active)
+                            .add_modifier(Modifier::BOLD),
                     ),
                 ]);
 
@@ -54,18 +56,18 @@ impl App {
                 let mut line2_spans = vec![
                     Span::styled(
                         "   in ",
-                        Style::default().fg(Color::Indexed(73)),
+                        Style::default().fg(active),
                     ),
                     Span::styled(
                         result.category_title,
-                        Style::default().fg(Color::Indexed(73)),
+                        Style::default().fg(active),
                     ),
                 ];
 
                 if !result.task.tags.is_empty() {
                     line2_spans.push(Span::styled(
                         "  ·  ",
-                        Style::default().fg(Color::Indexed(240)),
+                        Style::default().fg(active),
                     ));
                     for tag in &result.task.tags {
                         line2_spans.push(Span::styled(
@@ -88,7 +90,7 @@ impl App {
             Span::raw(" Results "),
             Span::styled(
                 format!("({}) ", results.len()),
-                Style::default().fg(Color::Indexed(240)),
+                Style::default().fg(active),
             ),
         ]);
 
@@ -98,13 +100,13 @@ impl App {
                     .borders(Borders::ALL)
                     .border_type(BorderType::Thick)
                     .border_style(Style::default().fg(border_color))
-                    .title(title).bg(Color::Indexed(240)),
+                    .title(title).bg(background),
             )
             .highlight_style(
                 Style::default()
-                    .bg(Color::Indexed(73))
+                    .bg(active)
                     .add_modifier(Modifier::BOLD)
-                    .fg(Color::White),
+                    .fg(Color::Black),
             )
             .highlight_symbol("  ");
 

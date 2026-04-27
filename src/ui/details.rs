@@ -13,6 +13,8 @@ use crate::{app::App, format_short_duration};
 
 impl App {
     pub fn render_details(&mut self, frame: &mut Frame, area: Rect) {
+        let active = self.config.active;
+        let bg = self.config.background;
         let _curr_category = match self
             .categoryliststate
             .selected()
@@ -28,23 +30,22 @@ impl App {
 
                 if let Some(i) = selected {
                     if let Some(task) = category.taskslist.tasks.get(i) {
-                        // ── outer shell ─────────────────────────────────────────
                         let outer_block = Block::default()
                             .borders(Borders::ALL)
                             .border_type(BorderType::Rounded)
-                            .border_style(Style::default().fg(Color::Indexed(73)))
+                            .border_style(Style::default().fg(active))
                             .title(Line::from(vec![
                                 Span::raw(" "),
                                 Span::styled(
                                     "Task Details",
                                     Style::default()
-                                        .fg(Color::Indexed(73))
+                                        .fg(active)
                                         .add_modifier(Modifier::BOLD),
                                 ),
                                 Span::raw(" "),
                             ]))
                             .title_alignment(Alignment::Center)
-                            .style(Style::default().bg(Color::DarkGray));
+                            .style(Style::default().bg(bg));
 
                         frame.render_widget(Clear, popup_area);
                         frame.render_widget(&outer_block, popup_area);
@@ -69,12 +70,12 @@ impl App {
                         // ── title banner ─────────────────────────────────────────
                         let title_block = Block::default()
                             .borders(Borders::NONE)
-                            .style(Style::default().bg(Color::DarkGray));
+                            .style(Style::default().bg(bg));
 
                         let title_para = Paragraph::new(Line::from(vec![Span::styled(
                             &task.title,
                             Style::default()
-                                .fg(Color::Indexed(73))
+                                .fg(active)
                                 .add_modifier(Modifier::BOLD),
                         )]))
                         .block(title_block)
@@ -95,7 +96,7 @@ impl App {
                             Span::styled(
                                 "Status ",
                                 Style::default()
-                                    .fg(Color::Indexed(73))
+                                    .fg(active)
                                     .add_modifier(Modifier::BOLD),
                             ),
                             Span::styled(
@@ -140,7 +141,7 @@ impl App {
                             Line::from(vec![Span::styled(
                                 "Description",
                                 Style::default()
-                                    .fg(Color::Indexed(73))
+                                    .fg(active)
                                     .add_modifier(Modifier::BOLD),
                             )]),
                             Line::from(vec![Span::styled(
@@ -158,7 +159,7 @@ impl App {
                         let tag_header = Line::from(vec![Span::styled(
                             "Tags",
                             Style::default()
-                                .fg(Color::Indexed(73))
+                                .fg(active)
                                 .add_modifier(Modifier::BOLD),
                         )]);
 
@@ -203,7 +204,7 @@ impl App {
                         frame.render_widget(
                             Paragraph::new(Line::from(vec![Span::styled(
                                 " [Esc] close",
-                                Style::default().fg(Color::Indexed(73)),
+                                Style::default().fg(active),
                             )]))
                             .alignment(Alignment::Right),
                             hint_area,

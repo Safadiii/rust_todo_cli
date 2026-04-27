@@ -9,6 +9,7 @@ mod app;
 mod ui;
 mod events;
 mod search;
+mod config;
 
 use storage::{load};
 

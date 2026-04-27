@@ -1,12 +1,12 @@
 use ratatui::layout::Rect;
 use ratatui::{DefaultTerminal, Frame};
 use ratatui::widgets::ListState;
-use crate::search::SearchResult;
 use crate::storage::save;
 use crate::task::{TaskList, Task};
 use crate::category::Category;
 use color_eyre::Result;
 use crate::{TASK_PATH,};
+use crate::config::config::{Config, UiConfig, load_config};
 
 pub enum CmdMode {
     AddingCategory,
@@ -56,14 +56,16 @@ pub struct App {
     pub commandmode: CmdMode,
     pub editing_task_id: Option<u32>,
     pub searchliststate: ListState,
+    pub config: UiConfig,
 }
 impl App {
     pub fn new(categories: Vec<Category>) -> Self {
         let list_state = ListState::default();
-        let mut categoryliststate = ListState::default();
-        let mut searchliststate = ListState::default();
+        let mut categoryliststate = ListState::default().with_offset(0);
+        let searchliststate = ListState::default();
         let tasks_list: TaskList = TaskList::new();
-        categoryliststate.select(Some(0));
+
+        categoryliststate.select_first();
 
         Self {
             exit: false,
@@ -85,9 +87,12 @@ impl App {
             commandmode: CmdMode::None,
             editing_task_id: None,
             searchliststate,
+            config: UiConfig::from(Config::default()),
         }
     }
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
+        let ui_conf: UiConfig = load_config();
+        self.config = ui_conf;
         while !self.exit {
             terminal.draw(|frame| self.draw(frame))?;
             match crossterm::event::read()? {

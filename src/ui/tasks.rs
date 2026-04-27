@@ -7,14 +7,14 @@ use ratatui::{Frame, style::Modifier};
 use ratatui::widgets::{Block, BorderType, Borders, List, ListItem};
 use ratatui::layout::Rect;
 use crate::task::Status;
-use ratatui::style::{Color, Style};
+use ratatui::style::{Color, Style, Stylize};
 use crate::format_short_duration;
 
 
 impl App {
     pub fn render_tasks_block(&mut self, frame: &mut Frame, area: Rect) {
         let tasks = if let Some(i) = self.categoryliststate.selected() {
-            if let Some(category) = self.categories.get(i) {
+            if let Some(category) = self.categories.get(i ) {
                 &category.taskslist.tasks
             } else {
                 &self.taskslist.tasks
@@ -23,13 +23,18 @@ impl App {
             &self.taskslist.tasks
         };
 
+        let color: Color = match self.mainfocus {
+            MainFocus::Task => self.config.active,
+            _ => self.config.inactive,
+        };
+
 
         let items: Vec<ListItem> = tasks
             .iter()
             .map(|task| {
                 let (symbol, color) = match task.status {
-                    Status::Done => ("◆", Color::Indexed(73)),
-                    Status::InProgress => ("◇", Color::Indexed(73)),
+                    Status::Done => ("◆", self.config.active),
+                    Status::InProgress => ("◇", self.config.active),
                 };
 
                 let left = format!("{} {}", symbol, task.title);
@@ -67,10 +72,6 @@ impl App {
                 ListItem::new(line)
             })
             .collect();
-        let color = match self.mainfocus {
-            MainFocus::Task => Color::Indexed(73),
-            _ => Color::Indexed(250),
-        };
         let list = List::new(items)
                     .block(
                         Block::default()
@@ -78,8 +79,8 @@ impl App {
                         .border_type(BorderType::Thick)
                         .border_style(Style::default().fg(color))
                         .merge_borders(MergeStrategy::Exact)
-                        .title("Tasks").style(Style::default().bg(Color::Indexed(240)))
-                    ).highlight_style(Style::default().add_modifier(Modifier::BOLD).bg(Color::Indexed(73)));
+                        .title("Tasks").style(Style::default().bg(self.config.background))
+                    ).highlight_style(Style::default().add_modifier(Modifier::BOLD).fg(Color::Black).bg(color));
         frame.render_stateful_widget(list, area, &mut self.list_state);
     }
 }

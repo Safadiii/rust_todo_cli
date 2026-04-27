@@ -13,15 +13,13 @@ exit -> exit the program
 
 Refactoring Code:
 
-- replace calculation of (i) in list state with next and previous (DONE)
-- modularize key events (DONE)
-- fix recurring task bug
-- search breaks when deleting empty input (DONE)
+- Remove add task popup -> Replace with CLI inline adding of tasks?
+- FIX RENDERING ISSUES IMPORTANT !!!
 
 
 Config:
 
-- Color Scheme Choosing
-- Modifying Style
+- Color Scheme Choosing (DONE)
+- Modifying Style (DONE)
 
 

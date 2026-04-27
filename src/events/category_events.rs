@@ -24,7 +24,17 @@ impl App {
             }
 
             KeyCode::Down | KeyCode::Char('j') => {
-                self.categoryliststate.select_next();
+                let len = self.categories.len();
+
+                if len == 0 {
+                    self.categoryliststate.select(None);
+                } else {
+                    let i = match self.categoryliststate.selected() {
+                        Some(i) => (i + 1) % len,
+                        None => 0,
+                    };
+                    self.categoryliststate.select(Some(i));
+                }
             }
 
             KeyCode::Up | KeyCode::Char('k') => {

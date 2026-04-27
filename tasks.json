@@ -7,21 +7,62 @@
           "id": 2,
           "title": "Hello",
           "tags": [],
+          "status": "Done",
+          "due": null,
+          "description": "",
+          "recurrence": null
+        },
+        {
+          "id": 3,
+          "title": "Hello",
+          "tags": [],
           "status": "InProgress",
           "due": null,
           "description": "",
           "recurrence": null
         }
       ],
-      "next_id": 2
+      "next_id": 3
     },
     "parent": null
   },
   {
     "title": "Today",
     "taskslist": {
-      "tasks": [],
-      "next_id": 0
+      "tasks": [
+        {
+          "id": 1,
+          "title": "Hello",
+          "tags": [],
+          "status": "InProgress",
+          "due": null,
+          "description": "",
+          "recurrence": null
+        }
+      ],
+      "next_id": 1
+    },
+    "parent": null
+  },
+  {
+    "title": "Rust",
+    "taskslist": {
+      "tasks": [
+        {
+          "id": 1,
+          "title": "TUI Request: ADD CONFIRMATION",
+          "tags": [
+            "TUI",
+            "TODO",
+            "RUST"
+          ],
+          "status": "InProgress",
+          "due": "2026-04-29T20:02:53.829005+03:00",
+          "description": "",
+          "recurrence": null
+        }
+      ],
+      "next_id": 1
     },
     "parent": null
   }
