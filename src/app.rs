@@ -1,6 +1,9 @@
+use std::collections;
+
 use ratatui::layout::Rect;
 use ratatui::{DefaultTerminal, Frame};
 use ratatui::widgets::ListState;
+use crate::search::SearchResult;
 use crate::storage::save;
 use crate::task::{TaskList, Task};
 use crate::category::Category;
@@ -51,11 +54,12 @@ pub struct App {
     pub mainfocus: MainFocus,
     pub categories: Vec<Category>,
     pub categoryliststate: ListState,
+    pub search_results: Vec<SearchResult>,
+    pub search_mode: bool,
     pub cmd: String,
     pub cmd_index: usize,
     pub commandmode: CmdMode,
     pub editing_task_id: Option<u32>,
-    pub searchliststate: ListState,
     pub config: UiConfig,
 }
 impl App {
@@ -86,8 +90,9 @@ impl App {
             cmd_index: 0,
             commandmode: CmdMode::None,
             editing_task_id: None,
-            searchliststate,
             config: UiConfig::from(Config::default()),
+            search_results: Vec::new(),
+            search_mode: false,
         }
     }
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
@@ -170,6 +175,20 @@ impl App {
                 };
             }
             _ => {}
+        }
+    }
+
+    pub fn visible_tasks<'a>(&'a self, cat_idx: usize) -> Vec<&'a Task> {
+        if self.search_mode {
+            self.search_results
+                .iter()
+                .filter(
+                    |r| r.category_index == cat_idx
+                ).map(
+                    |r| &self.categories[r.category_index].taskslist.tasks[r.task_index]
+                ).collect()
+        } else {
+            self.categories[cat_idx].taskslist.tasks.iter().collect()
         }
     }
 }

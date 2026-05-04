@@ -26,10 +26,14 @@ impl App {
     pub fn handle_search_events(&mut self, key_event: KeyEvent) -> Result<()> {
         match key_event.code {
             KeyCode::Down | KeyCode::Char('j') => {
-                self.searchliststate.select_next();   
+                match self.mainfocus {
+                    MainFocus::SearchResults => {self.categoryliststate.select_next();}
+                    MainFocus::Task => {self.list_state.select_next();}
+                    _ => {}
+                }
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                self.searchliststate.select_previous();
+                self.categoryliststate.select_previous();
             }
             KeyCode::Esc => {
                 self.focus = Focus::None;
@@ -37,6 +41,16 @@ impl App {
                 self.cmd = String::from("");
                 self.cmd_index = 0;
                 self.commandmode = CmdMode::None;
+                self.search_mode = false;
+            }
+            KeyCode::Enter => {
+                match self.mainfocus {
+                    MainFocus::SearchResults => {
+                        self.mainfocus = MainFocus::Task;
+                    },
+                    MainFocus::Task => self.focus = Focus::DetailsPopup,
+                    _ => {}
+                }
             }
             _ => {}
         }

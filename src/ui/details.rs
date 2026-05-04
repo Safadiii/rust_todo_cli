@@ -27,9 +27,11 @@ impl App {
                 );
 
                 let selected = self.list_state.selected();
+                let cat_idx = self.categoryliststate.selected().unwrap_or(0);
+                let tasks = self.visible_tasks(cat_idx);
 
                 if let Some(i) = selected {
-                    if let Some(task) = category.taskslist.tasks.get(i) {
+                    if let Some(task) = tasks.get(i) {
                         let outer_block = Block::default()
                             .borders(Borders::ALL)
                             .border_type(BorderType::Rounded)

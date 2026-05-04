@@ -3,7 +3,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use humantime::parse_duration;
 use color_eyre::Result;
 
-use crate::{app::{AddTaskField, App, Focus}, char_to_byte_index, due_parse, storage::{TASK_PATH, save}, task::Recurrence};
+use crate::{app::{AddTaskField, App, CmdMode, Focus, MainFocus}, char_to_byte_index, due_parse, storage::{TASK_PATH, save}, task::Recurrence};
 
 
 fn parse_recurrence(input: &str) -> Option<Recurrence> {
@@ -146,6 +146,10 @@ impl App {
         match key_event.code {
             KeyCode::Esc | KeyCode::Char('q') => {
                 self.focus = Focus::None;
+                self.mainfocus = MainFocus::Task;
+                self.cmd = String::from("");
+                self.cmd_index = 0;
+                self.commandmode = CmdMode::None;
             }
             _ => {}
         }

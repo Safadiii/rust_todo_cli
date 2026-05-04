@@ -36,8 +36,9 @@ impl App {
                 return;
             }
             Focus::Search => {
-                self.render_results(frame, top_chunks[0]);
+                self.render_categories(frame,top_chunks[0]);
                 self.render_tasks_block(frame, top_chunks[1]);
+                return;
             }
             Focus::AddTaskPopup => {
                 frame.render_widget(

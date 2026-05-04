@@ -10,9 +10,9 @@ pub enum MatchField {
     Title,
     Description
 }
-pub struct SearchResult<'a> {
-    pub category_title: &'a str,
-    pub task: &'a Task,
+pub struct SearchResult {
+    pub category_index: usize,
+    pub task_index: usize,
     pub score: f64,
     pub matched_on: Vec<MatchField>
 }
@@ -58,11 +58,11 @@ impl Default for SearchConfig {
     }
 }
 
-pub fn search_fuzzy<'a>(categories: &'a [Category], query: &str, config: &SearchConfig) -> Vec<SearchResult<'a>> {
-    let mut results: Vec<SearchResult<'a>> = Vec::new();
+pub fn search_fuzzy<'a>(categories: &'a [Category], query: &str, config: &SearchConfig) -> Vec<SearchResult> {
+    let mut results: Vec<SearchResult> = Vec::new();
 
-    for cat in categories {
-        for task in &cat.taskslist.tasks {
+    for (cat_idx, cat) in categories.iter().enumerate() {
+        for (task_idx, task) in cat.taskslist.tasks.iter().enumerate() {
             let mut weighted_score = 0.0_f64;
             let mut matched_on = Vec::new();
 
@@ -89,7 +89,7 @@ pub fn search_fuzzy<'a>(categories: &'a [Category], query: &str, config: &Search
             }
 
             if !matched_on.is_empty() {
-                results.push(SearchResult { category_title: &cat.title, task, score: weighted_score, matched_on });
+                results.push(SearchResult { category_index: cat_idx, task_index: task_idx, score: weighted_score, matched_on });
             }
         }
     }
@@ -97,4 +97,17 @@ pub fn search_fuzzy<'a>(categories: &'a [Category], query: &str, config: &Search
     results.sort_by(|a,  b| b.score.partial_cmp(&a.score).unwrap());
 
     results
+}
+
+
+pub fn tasks_for_category<'a>(
+    cat_index: usize,
+    categories: &'a [Category],
+    results: &'a [SearchResult],
+) -> Vec<&'a Task> {
+    results
+        .iter()
+        .filter(|r| r.category_index == cat_index)
+        .map(|r| &categories[r.category_index].taskslist.tasks[r.task_index])
+        .collect()
 }

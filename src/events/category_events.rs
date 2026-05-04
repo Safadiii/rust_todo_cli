@@ -64,7 +64,7 @@ impl App {
             }
             
             KeyCode::Esc => {
-                self.mainfocus = MainFocus::None;
+                self.search_mode = false;
             }
 
             _ => {}

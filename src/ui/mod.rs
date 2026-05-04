@@ -6,4 +6,3 @@ mod footer;
 mod addtaskpopup;
 mod draw;
 mod details;
-mod search_result;

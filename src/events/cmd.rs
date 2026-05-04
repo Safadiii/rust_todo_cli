@@ -1,7 +1,7 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 use color_eyre::{Result};
 
-use crate::{app::{App, CmdMode, Focus, MainFocus}, category::Category, char_to_byte_index,};
+use crate::{app::{App, CmdMode, Focus, MainFocus}, category::Category, char_to_byte_index, search::{SearchConfig, search_fuzzy},};
 
 impl App {
     pub fn handle_cmd_events(&mut self, key_event: KeyEvent) -> Result<()> {
@@ -44,7 +44,8 @@ impl App {
                     CmdMode::Search => {
                         self.focus = Focus::Search;
                         self.mainfocus = MainFocus::SearchResults;
-                        self.searchliststate.select_first();
+                        self.search_results = search_fuzzy(&self.categories, &self.cmd, &SearchConfig::default());
+                        self.search_mode = true;
                     }
                     _ => {}
                 }
