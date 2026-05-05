@@ -25,8 +25,8 @@ impl App {
                     })
                     .collect();
         let color: Color = match self.mainfocus {
-            MainFocus::Categories | MainFocus::SearchResults => self.config.active,
-            _ => self.config.inactive,
+            MainFocus::Categories | MainFocus::SearchResults => self.config.ui.active,
+            _ => self.config.ui.inactive,
         };
 
         let title = if self.search_mode {
@@ -42,7 +42,7 @@ impl App {
                 .border_type(BorderType::Thick)
                 .border_style(Style::default().fg(color))
                 .merge_borders(MergeStrategy::Exact)
-                .title(title).style(Style::default().bg(self.config.background))
+                .title(title).style(Style::default().bg(self.config.ui.background))
             ).highlight_style(Style::default().add_modifier(Modifier::BOLD).fg(Color::Black).bg(color));
         frame.render_stateful_widget(list, area, &mut self.categoryliststate);
     }

@@ -13,7 +13,7 @@ mod config;
 
 use storage::{load};
 
-use crate::app::App;
+use crate::{app::App, config::config::load_config};
 
 const TASK_PATH: &str = "tasks.json";
 
@@ -65,6 +65,7 @@ fn main() -> Result<()> {
     //     take_input(&mut tasks);
     // }
     let categories = load(TASK_PATH);
+    let config = load_config();
     color_eyre::install()?;
-    ratatui::run(|terminal  | App::new(categories).run(terminal))
+    ratatui::run(|terminal  | App::new(categories, config).run(terminal))
 }

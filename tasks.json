@@ -117,9 +117,35 @@
           "due": null,
           "description": "",
           "recurrence": null
+        },
+        {
+          "id": 3,
+          "title": "FEATURE: Adding Config Options (Colors + Keys)",
+          "tags": [
+            "Rust",
+            "TUI",
+            "Feature"
+          ],
+          "status": "InProgress",
+          "due": null,
+          "description": "",
+          "recurrence": null
+        },
+        {
+          "id": 4,
+          "title": "FEATURE: ADD Description ",
+          "tags": [
+            "Search",
+            "Rust",
+            "Add"
+          ],
+          "status": "InProgress",
+          "due": null,
+          "description": "",
+          "recurrence": null
         }
       ],
-      "next_id": 2
+      "next_id": 4
     },
     "parent": null
   }

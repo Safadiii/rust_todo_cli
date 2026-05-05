@@ -9,7 +9,7 @@ use crate::task::{TaskList, Task};
 use crate::category::Category;
 use color_eyre::Result;
 use crate::{TASK_PATH,};
-use crate::config::config::{Config, UiConfig, load_config};
+use crate::config::config::{AppConfig, Config, UiConfig, load_config};
 
 pub enum CmdMode {
     AddingCategory,
@@ -60,10 +60,10 @@ pub struct App {
     pub cmd_index: usize,
     pub commandmode: CmdMode,
     pub editing_task_id: Option<u32>,
-    pub config: UiConfig,
+    pub config: AppConfig,
 }
 impl App {
-    pub fn new(categories: Vec<Category>) -> Self {
+    pub fn new(categories: Vec<Category>, config: AppConfig) -> Self {
         let list_state = ListState::default();
         let mut categoryliststate = ListState::default().with_offset(0);
         let searchliststate = ListState::default();
@@ -90,14 +90,12 @@ impl App {
             cmd_index: 0,
             commandmode: CmdMode::None,
             editing_task_id: None,
-            config: UiConfig::from(Config::default()),
+            config,
             search_results: Vec::new(),
             search_mode: false,
         }
     }
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
-        let ui_conf: UiConfig = load_config();
-        self.config = ui_conf;
         while !self.exit {
             terminal.draw(|frame| self.draw(frame))?;
             match crossterm::event::read()? {

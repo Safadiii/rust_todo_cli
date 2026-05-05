@@ -13,8 +13,8 @@ use crate::{app::App, format_short_duration};
 
 impl App {
     pub fn render_details(&mut self, frame: &mut Frame, area: Rect) {
-        let active = self.config.active;
-        let bg = self.config.background;
+        let active = self.config.ui.active;
+        let bg = self.config.ui.background;
         let _curr_category = match self
             .categoryliststate
             .selected()

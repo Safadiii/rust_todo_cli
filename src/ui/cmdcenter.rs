@@ -6,9 +6,9 @@ impl App {
     pub fn render_command_center(&mut self, frame: &mut Frame, area: Rect) {
         let color = match self.mainfocus {
             MainFocus::None => {
-                self.config.active
+                self.config.ui.active
             }
-            _ => self.config.inactive
+            _ => self.config.ui.inactive
         };
 
         let title: String = match self.commandmode {
@@ -19,7 +19,7 @@ impl App {
         };
 
         let cmd_input = Text::from(self.cmd.as_str());
-        let block = Block::default().borders(Borders::ALL).border_type(BorderType::Thick).border_style(Style::default().fg(color)).title(title).bg(self.config.background);
+        let block = Block::default().borders(Borders::ALL).border_type(BorderType::Thick).border_style(Style::default().fg(color)).title(title).bg(self.config.ui.background);
         let inner = block.inner(area);
         let cmd = Paragraph::new(cmd_input).block(block);
         frame.render_widget(cmd, area);

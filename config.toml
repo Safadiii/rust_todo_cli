@@ -4,7 +4,30 @@ active = { r = 198, g = 244, b = 208 }
 foreground = "white"
 inactive = 250
 
-[keys]
-down = "j"
-up = "k"
+[keys.global]
 quit = "q"
+up = "k"
+down = "j"
+search = "s"
+escape = "esc"
+help = "h"
+
+[keys.task]
+add = "a"
+edit = "e"
+delete = "delete"
+complete = "x"
+in_progress = "p"
+description = "d"
+
+[keys.category]
+add = "a"
+delete = "D"
+sort = "s"
+enter_tasks = "enter"
+
+[keys.popup]
+next = "tab"
+prev = "k"
+submit = "enter"
+cancel = "esc"

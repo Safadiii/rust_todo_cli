@@ -10,8 +10,8 @@ use crate::app::{AddTaskField, App};
 impl App {
     pub fn render_add_task_popup(&mut self, frame: &mut Frame, area: Rect) {
         self.clamp_cursor();
-        let color_main = self.config.active;
-        let bg = self.config.background;
+        let color_main = self.config.ui.active;
+        let bg = self.config.ui.background;
         let mode_span = if self.editing_task_id.is_some() {
             Span::styled(" EDIT ", Style::default().bg(color_main).fg(Color::Black).add_modifier(Modifier::BOLD))
         } else {
@@ -50,25 +50,25 @@ impl App {
         let title_block = Block::default().title("Title").borders(Borders::ALL).style(
             match self.addtaskfield {
                 AddTaskField::Title => Style::default().fg(color_main),
-                _ => Style::default().fg(self.config.inactive),
+                _ => Style::default().fg(self.config.ui.inactive),
             }
         );
         let tags_block = Block::default().title("Tags").borders(Borders::ALL).style(
             match self.addtaskfield {
                 AddTaskField::Tags => Style::default().fg(color_main),
-                _ => Style::default().fg(self.config.inactive),
+                _ => Style::default().fg(self.config.ui.inactive),
             }
         );
         let due_block = Block::default().title("Due").borders(Borders::ALL).style(
             match self.addtaskfield {
                 AddTaskField::Due => Style::default().fg(color_main),
-                _ => Style::default().fg(self.config.inactive),
+                _ => Style::default().fg(self.config.ui.inactive),
             }
         );  
         let recurring_block = Block::default().title("Recurring").borders(Borders::ALL).style(
             match self.addtaskfield {
                 AddTaskField::Recurring => Style::default().fg(color_main),
-                _ => Style::default().fg(self.config.inactive),
+                _ => Style::default().fg(self.config.ui.inactive),
             }
         );     
 

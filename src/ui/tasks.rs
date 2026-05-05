@@ -15,15 +15,15 @@ impl App {
         let tasks = self.visible_tasks(cat_idx);
 
         let color = match self.mainfocus {
-            MainFocus::Task => self.config.active,
-            _ => self.config.inactive,
+            MainFocus::Task => self.config.ui.active,
+            _ => self.config.ui.inactive,
         };
         let items: Vec<ListItem> = tasks
             .iter()
             .map(|task| {
                 let (symbol, status_color) = match task.status {
-                    Status::Done => ("◆", self.config.active),
-                    Status::InProgress => ("◇", self.config.active),
+                    Status::Done => ("◆", self.config.ui.active),
+                    Status::InProgress => ("◇", self.config.ui.active),
                 };
 
                 let left = format!("{} {}", symbol, task.title);
@@ -66,7 +66,7 @@ impl App {
                     .border_type(BorderType::Thick)
                     .border_style(Style::default().fg(color))
                     .title("Tasks")
-                    .style(Style::default().bg(self.config.background)),
+                    .style(Style::default().bg(self.config.ui.background)),
             )
             .highlight_style(
                 Style::default()
