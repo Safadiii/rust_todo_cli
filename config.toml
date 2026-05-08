@@ -8,9 +8,10 @@ inactive = 250
 quit = "q"
 up = "k"
 down = "j"
-search = "s"
+search = "S"
 escape = "esc"
-help = "h"
+help = "H"
+switch_focus = "tab"
 
 [keys.task]
 add = "a"
@@ -19,15 +20,20 @@ delete = "delete"
 complete = "x"
 in_progress = "p"
 description = "d"
+details = "enter"
 
 [keys.category]
 add = "a"
 delete = "D"
 sort = "s"
 enter_tasks = "enter"
+clear_overdue = "c"
+clear_done = "d"
 
 [keys.popup]
-next = "tab"
+next = "j"
 prev = "k"
 submit = "enter"
 cancel = "esc"
+edit_mode = "e"
+clear = "c"

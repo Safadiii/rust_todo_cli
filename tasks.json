@@ -4,10 +4,21 @@
     "taskslist": {
       "tasks": [
         {
+          "id": 5,
+          "title": "Today: Test",
+          "tags": [
+            "Abed"
+          ],
+          "status": "InProgress",
+          "due": "2026-05-07T23:07:49.790927+03:00",
+          "description": "",
+          "recurrence": null
+        },
+        {
           "id": 2,
           "title": "Hello",
           "tags": [],
-          "status": "Done",
+          "status": "InProgress",
           "due": null,
           "description": "",
           "recurrence": null
@@ -22,18 +33,16 @@
           "recurrence": null
         },
         {
-          "id": 4,
-          "title": "Abed",
-          "tags": [
-            "Hello"
-          ],
+          "id": 6,
+          "title": "Hello",
+          "tags": [],
           "status": "InProgress",
           "due": null,
           "description": "",
           "recurrence": null
         }
       ],
-      "next_id": 4
+      "next_id": 6
     },
     "parent": null
   },
@@ -45,7 +54,7 @@
           "id": 1,
           "title": "Hello",
           "tags": [],
-          "status": "InProgress",
+          "status": "Done",
           "due": null,
           "description": "",
           "recurrence": null
@@ -67,7 +76,7 @@
           "tags": [
             "Gym"
           ],
-          "status": "InProgress",
+          "status": "Done",
           "due": null,
           "description": "",
           "recurrence": null
@@ -93,19 +102,6 @@
     "title": "Rust",
     "taskslist": {
       "tasks": [
-        {
-          "id": 1,
-          "title": "TUI Request: ADD CONFIRMATION",
-          "tags": [
-            "TUI",
-            "TODO",
-            "RUST"
-          ],
-          "status": "InProgress",
-          "due": "2026-04-29T20:02:53.829005+03:00",
-          "description": "",
-          "recurrence": null
-        },
         {
           "id": 2,
           "title": "BUG: SEARCH LIST MISMATCHED",
@@ -145,7 +141,7 @@
           "recurrence": null
         }
       ],
-      "next_id": 4
+      "next_id": 5
     },
     "parent": null
   }

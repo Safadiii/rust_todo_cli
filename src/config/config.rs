@@ -1,7 +1,7 @@
 use core::task;
 use std::{fs, path::Path, collections::HashMap};
 
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::style::Color;
 use serde::{Deserialize, Serialize};
 
@@ -29,6 +29,7 @@ pub enum Action {
     Down,
     Search,
     Escape,
+    SwitchFocus,
 
     TaskAdd,
     TaskEdit,
@@ -36,16 +37,21 @@ pub enum Action {
     TaskComplete,
     TaskInProgress,
     TaskDescription,
+    TaskDetails,
 
     CategoryAdd,
     CategoryDelete,
     CategorySort,
     CategoryEnter,
+    CategoryClearOverdue,
+    CategoryClearDone,
 
     PopupNextField,
     PopupPrevField,
     PopupSubmit,
     PopupCancel,
+    PopupEditMode,
+    PopupClear,
 }
 #[derive(Debug, Deserialize, Clone)]
 
@@ -57,12 +63,19 @@ pub struct KeyConfig {
 }
 
 pub struct KeyBindings {
-    pub global: HashMap<KeyCode, Action>,
-    pub task: HashMap<KeyCode, Action>,
-    pub category: HashMap<KeyCode, Action>,
-    pub popup: HashMap<KeyCode, Action>,
+    pub global: HashMap<KeyBinding, Action>,
+    pub task: HashMap<KeyBinding, Action>,
+    pub category: HashMap<KeyBinding, Action>,
+    pub popup: HashMap<KeyBinding, Action>,
 }
 
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+
+pub struct KeyBinding {
+    pub code: KeyCode,
+    pub modifier: KeyModifiers,
+}
 
 
 
@@ -115,26 +128,35 @@ impl ColorConfig {
     }
 }
 
-fn parse_key(s: &str) -> KeyCode {
+fn parse_key(s: &str) -> KeyBinding {
 
-    let s = s.trim().to_lowercase();
+    let s = s.trim();
 
-    if s.chars().count() == 1 {
-        return s.chars().next().map(KeyCode::Char).unwrap();
+    if let Some(rest) = s.strip_prefix("ctrl+") {
+        if let Some(c) = rest.chars().next() {
+            return KeyBinding { code: KeyCode::Char(c.to_ascii_lowercase()), modifier: KeyModifiers::CONTROL }
+        }
     }
 
+
+    if s.len() == 1 {
+        let c = s.chars().next().unwrap();
+
+        return KeyBinding { code: KeyCode::Char(c), modifier: if c.is_ascii_uppercase() {
+            KeyModifiers::SHIFT } else {
+                KeyModifiers::NONE
+            }
+        }
+    }
     match s.to_lowercase().as_str() {
-        "j" => KeyCode::Char('j'),
-        "k" => KeyCode::Char('k'),
-        "q" => KeyCode::Char('q'),
-        "up" => KeyCode::Up,
-        "down" => KeyCode::Down,
-        "left" => KeyCode::Left,
-        "right" => KeyCode::Right,
-        "enter" => KeyCode::Enter,
-        "esc" => KeyCode::Esc,
-        "tab" => KeyCode::Tab,
-        _ => KeyCode::Null,
+        "up" => KeyBinding { code: KeyCode::Up, modifier: KeyModifiers::NONE },
+        "down" => KeyBinding { code: KeyCode::Down, modifier: KeyModifiers::NONE },
+        "left" => KeyBinding { code: KeyCode::Left, modifier: KeyModifiers::NONE },
+        "right" => KeyBinding { code: KeyCode::Right, modifier: KeyModifiers::NONE },
+        "enter" => KeyBinding { code: KeyCode::Enter, modifier: KeyModifiers::NONE },
+        "esc" => KeyBinding { code: KeyCode::Esc, modifier: KeyModifiers::NONE },
+        "tab" => KeyBinding { code: KeyCode::Tab, modifier: KeyModifiers::NONE },
+        _ => KeyBinding { code: KeyCode::Null, modifier: KeyModifiers::NONE },
     }
 }
 
@@ -185,7 +207,7 @@ pub fn load_config() -> AppConfig {
 impl From<Config> for KeyBindings {
     fn from(cfg: Config) -> Self {
         fn build_map(map: &HashMap<String, String>, action_maps: &[(String, Action)])
-        -> HashMap<KeyCode, Action>
+        -> HashMap<KeyBinding, Action>
         {
         
             let mut out = HashMap::new();
@@ -207,6 +229,7 @@ impl From<Config> for KeyBindings {
             ("down".into(), Action::Down),
             ("search".into(), Action::Search),
             ("escape".into(), Action::Escape),
+            ("switch_focus".into(), Action::SwitchFocus),
         ];    
 
         let task_actions = vec![
@@ -216,6 +239,7 @@ impl From<Config> for KeyBindings {
             ("complete".into(), Action::TaskComplete),
             ("in_progress".into(), Action::TaskInProgress),
             ("description".into(), Action::TaskDescription),
+            ("details".into(), Action::TaskDetails),
         ];
 
         let category_actions = vec![
@@ -223,6 +247,8 @@ impl From<Config> for KeyBindings {
             ("delete".into(), Action::CategoryDelete),
             ("sort".into(), Action::CategorySort),
             ("enter_tasks".into(), Action::CategoryEnter),
+            ("clear_overdue".into(), Action::CategoryClearOverdue),
+            ("clear_done".into(), Action::CategoryClearDone),
         ];
 
         let popup_actions = vec![
@@ -230,6 +256,8 @@ impl From<Config> for KeyBindings {
             ("prev".into(), Action::PopupPrevField),
             ("submit".into(), Action::PopupSubmit),
             ("cancel".into(), Action::PopupCancel),
+            ("edit_mode".into(), Action::PopupEditMode),
+            ("clear".into(), Action::PopupClear),
         ];
 
         Self {
@@ -245,14 +273,22 @@ impl From<Config> for KeyBindings {
 impl KeyBindings {
     pub fn resolve(
         &self,
-        key: KeyCode,
+        key: KeyBinding,
         mainfocus: &MainFocus,
         focus: &Focus
     ) -> Option<Action> {
 
+        if matches!(focus, Focus::AddTaskPopup | Focus::DetailsPopup) {
+            if let Some(action) = self.popup.get(&key) {
+                return Some(*action);
+            }
+        }
+
         if let Some(action) = self.global.get(&key) {
             return Some(*action);
         }
+
+
         match mainfocus {
             MainFocus::Task => {
                 if let Some(action) = self.task.get(&key) {
@@ -267,11 +303,7 @@ impl KeyBindings {
             _ => {}
         }
 
-        if matches!(focus, Focus::AddTaskPopup | Focus::DetailsPopup) {
-            if let Some(action) = self.popup.get(&key) {
-                return Some(*action);
-            }
-        }
+
         None
     }
 }

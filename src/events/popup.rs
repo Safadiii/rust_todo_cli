@@ -6,7 +6,7 @@ use color_eyre::Result;
 use crate::{app::{AddTaskField, App, CmdMode, Focus, MainFocus}, char_to_byte_index, due_parse, storage::{TASK_PATH, save}, task::Recurrence};
 
 
-fn parse_recurrence(input: &str) -> Option<Recurrence> {
+pub fn parse_recurrence(input: &str) -> Option<Recurrence> {
     match input.trim().to_lowercase().as_str() {
         "" => None,
         "daily"   => Some(Recurrence::Daily),
